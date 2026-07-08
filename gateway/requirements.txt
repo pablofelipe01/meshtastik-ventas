@@ -1,0 +1,3 @@
+meshtastic
+anthropic
+python-dotenv
