@@ -25,6 +25,8 @@ Requisitos del entorno:
 """
 import logging
 import os
+import threading
+import time
 
 # ---------- Configuración (todo por .env) ----------
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
@@ -68,6 +70,60 @@ def _web_search_tool():
         "name": "web_search",
         "max_uses": CLAUDE_WEB_SEARCH_MAX_USES,
     }
+
+
+# ---------- Memoria de conversación por nodo ----------
+# Cada nodo (teléfono) tiene su propio hilo. Se guarda SOLO el texto (no los
+# resultados de búsqueda web, que quedan viejos y son enormes). El hilo se
+# olvida tras CLAUDE_MEMORY_TTL_MIN minutos de inactividad, o al llegar a
+# CLAUDE_MEMORY_MAX_TURNS intercambios (ventana deslizante).
+CLAUDE_MEMORY = os.getenv("CLAUDE_MEMORY", "true").strip().lower() in (
+    "1", "true", "yes", "si", "sí",
+)
+CLAUDE_MEMORY_TTL_MIN = float(os.getenv("CLAUDE_MEMORY_TTL_MIN", "5"))
+CLAUDE_MEMORY_MAX_TURNS = int(os.getenv("CLAUDE_MEMORY_MAX_TURNS", "8"))
+# Palabras que reinician el hilo: "@claude nuevo", "@claude reset", etc.
+_RESET_WORDS = {"nuevo", "reset", "reiniciar", "borrar", "olvida", "olvidar"}
+
+# node_num -> {"messages": [ {role, content}, ... ], "last": epoch_seconds}
+_conversations = {}
+_conv_lock = threading.Lock()
+
+
+def _reset_conversation(node_num) -> None:
+    with _conv_lock:
+        _conversations.pop(node_num, None)
+
+
+def _get_history(node_num) -> list:
+    """Historial vigente del nodo (lista de mensajes), o [] si no hay o expiró."""
+    if not CLAUDE_MEMORY:
+        return []
+    ttl = CLAUDE_MEMORY_TTL_MIN * 60
+    now = time.time()
+    with _conv_lock:
+        entry = _conversations.get(node_num)
+        if entry is None:
+            return []
+        if now - entry["last"] > ttl:
+            _conversations.pop(node_num, None)  # expiró
+            return []
+        return list(entry["messages"])
+
+
+def _remember(node_num, user_text: str, assistant_text: str) -> None:
+    """Añade el intercambio al hilo del nodo y recorta a la ventana de turnos."""
+    if not CLAUDE_MEMORY:
+        return
+    max_msgs = CLAUDE_MEMORY_MAX_TURNS * 2  # cada turno = user + assistant
+    with _conv_lock:
+        entry = _conversations.get(node_num) or {"messages": [], "last": 0.0}
+        entry["messages"].append({"role": "user", "content": user_text})
+        entry["messages"].append({"role": "assistant", "content": assistant_text})
+        if len(entry["messages"]) > max_msgs:
+            entry["messages"] = entry["messages"][-max_msgs:]
+        entry["last"] = time.time()
+        _conversations[node_num] = entry
 
 
 # Tope de bytes útiles por paquete Meshtastic (~237 real). Margen para "[i/n] ".
@@ -148,9 +204,10 @@ def _extract_text(content) -> str:
     return "".join(parts).strip()
 
 
-def _ask_claude(query: str) -> str:
+def _ask_claude(query: str, history: list = None) -> str:
     """Llama a la API de Anthropic (con búsqueda web si está activa) y devuelve
-    el texto final. Maneja `pause_turn` reenviando la conversación."""
+    el texto final. `history` es el hilo previo del nodo (mensajes de texto).
+    Maneja `pause_turn` reenviando la conversación."""
     client = _anthropic_client.with_options(timeout=CLAUDE_TIMEOUT_SECONDS)
     tools = []
     tool = _web_search_tool()
@@ -165,7 +222,7 @@ def _ask_claude(query: str) -> str:
     if tools:
         kwargs["tools"] = tools
 
-    messages = [{"role": "user", "content": query}]
+    messages = list(history or []) + [{"role": "user", "content": query}]
     # Con herramientas del lado del servidor, la API puede pausar (pause_turn)
     # si el bucle interno llega al límite; se reanuda reenviando el historial.
     for _ in range(4):
@@ -189,13 +246,23 @@ def handle_claude(interface, from_num, text: str) -> None:
     if not query:
         send_text(interface, from_num, "Claude: escribe tu pregunta después de @claude.")
         return
+
+    # Comando de reinicio del hilo: "@claude nuevo" / "reset" / ...
+    if query.lower().strip(" .!?¿¡") in _RESET_WORDS:
+        _reset_conversation(from_num)
+        log.info("🧹 Hilo reiniciado por %s", _node_hex(from_num))
+        send_text(interface, from_num, "Claude: listo, empecé una conversación nueva.")
+        return
+
     if _anthropic_client is None:
         send_text(interface, from_num, "Claude: no configurado (falta ANTHROPIC_API_KEY).")
         return
 
-    log.info("🤖 Consulta Claude de %s: %s", _node_hex(from_num), query)
+    history = _get_history(from_num)
+    log.info("🤖 Consulta Claude de %s (%d turnos previos): %s",
+             _node_hex(from_num), len(history) // 2, query)
     try:
-        answer = _ask_claude(query)
+        answer = _ask_claude(query, history)
     except Exception as e:
         log.error("✗ Error consultando Claude: %s", e)
         send_text(interface, from_num, "Claude: error al consultar. Intenta de nuevo.")
@@ -205,6 +272,7 @@ def handle_claude(interface, from_num, text: str) -> None:
         send_text(interface, from_num, "Claude: sin respuesta.")
         return
 
+    _remember(from_num, query, answer)
     chunks = _chunk_for_mesh("Claude: " + answer)
     total = len(chunks)
     for i, chunk in enumerate(chunks, 1):

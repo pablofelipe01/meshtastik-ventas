@@ -53,6 +53,23 @@ Un solo comando de texto plano, enviado a **cualquier canal o por DM** al gatewa
 - **Datos actuales** (noticias, precios, clima, resultados): Claude usa la
   **búsqueda web** (el gateway tiene internet), ~15-20 s, con costo por búsqueda.
 
+### Memoria de conversación
+
+Cada nodo mantiene su **propio hilo**, así los seguimientos funcionan:
+
+```
+@claude ¿partidos de mañana del mundial?   → Francia vs Marruecos...
+@claude ¿y el viernes?                      → (entiende el contexto) España vs Bélgica...
+@claude nuevo                               → borra el hilo y empieza de cero
+```
+
+- **Por nodo:** el hilo de cada teléfono es independiente.
+- **TTL:** se olvida tras `CLAUDE_MEMORY_TTL_MIN` minutos de inactividad (default 5) — evita enganchar un seguimiento a una charla vieja.
+- **Ventana:** guarda los últimos `CLAUDE_MEMORY_MAX_TURNS` intercambios (default 8); al llegar al tope descarta el más viejo.
+- **Solo texto:** no guarda resultados de búsqueda web (quedan viejos); en un seguimiento Claude vuelve a buscar si hace falta.
+- **Reinicio manual:** `@claude nuevo` (también `reset`, `reiniciar`, `borrar`, `olvida`).
+- La memoria vive en RAM del gateway (se pierde al reiniciar el servicio) y es barata (~2-3K tokens por consulta con historial).
+
 ### Chat entre nodos
 
 El chat normal entre nodos lo transporta la **mesh nativa de Meshtastic**; el
@@ -77,6 +94,9 @@ API key). El gateway lo carga con `python-dotenv`.
 | `CLAUDE_SYSTEM_PROMPT` | *(asistente general)* | Personalidad y reglas de Claude. El default lo define como asistente general que responde cualquier tema, en español, breve (<350 chars), terminando con punto. Cámbialo para adaptar tono/dominio. |
 | `CLAUDE_WEB_SEARCH` | `true` | Activa/desactiva la búsqueda web. `false` = solo conocimiento del modelo (sin costo de búsqueda, sin datos en tiempo real). |
 | `CLAUDE_WEB_SEARCH_MAX_USES` | `5` | Máximo de búsquedas por consulta (control de costo). Cada búsqueda cuesta ~$10 USD por 1.000. |
+| `CLAUDE_MEMORY` | `true` | Activa/desactiva la memoria de conversación por nodo. `false` = cada `@claude` es independiente. |
+| `CLAUDE_MEMORY_TTL_MIN` | `5` | Minutos de inactividad tras los que se olvida el hilo de un nodo. |
+| `CLAUDE_MEMORY_MAX_TURNS` | `8` | Máximo de intercambios (pregunta+respuesta) que se recuerdan por nodo. |
 
 > **Costo:** además de los tokens del modelo, cada búsqueda web se factura aparte
 > (~$0.01/búsqueda). Baja `CLAUDE_WEB_SEARCH_MAX_USES` o pon `CLAUDE_WEB_SEARCH=false`
