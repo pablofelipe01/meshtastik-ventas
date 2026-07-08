@@ -28,15 +28,48 @@ import os
 
 # ---------- Configuración (todo por .env) ----------
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
-CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-haiku-4-5").strip()
-CLAUDE_MAX_TOKENS = int(os.getenv("CLAUDE_MAX_TOKENS", "160"))
-CLAUDE_TIMEOUT_SECONDS = float(os.getenv("CLAUDE_TIMEOUT", "30"))
+CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip()
+# Con búsqueda web el modelo necesita margen para generar consultas + leer
+# resultados + escribir la respuesta; la longitud FINAL la limita el system prompt.
+CLAUDE_MAX_TOKENS = int(os.getenv("CLAUDE_MAX_TOKENS", "1024"))
+CLAUDE_TIMEOUT_SECONDS = float(os.getenv("CLAUDE_TIMEOUT", "60"))
 CLAUDE_SYSTEM_PROMPT = os.getenv(
     "CLAUDE_SYSTEM_PROMPT",
-    "Eres un asistente para una red de radio de texto (Meshtastic/LoRa) en zonas "
-    "sin internet. Respondes SIEMPRE en español, de forma breve, completa y "
-    "directa, en menos de 350 caracteres. Termina siempre con punto final.",
+    "Eres un asistente general útil que responde por una red de radio de texto "
+    "(Meshtastic/LoRa) en zonas sin internet. Puedes responder sobre CUALQUIER "
+    "tema. Cuando la pregunta dependa de datos actuales (noticias, precios, clima, "
+    "eventos, resultados deportivos), usa la búsqueda web. Responde SIEMPRE en "
+    "español, de forma breve, completa y directa, en menos de 350 caracteres. "
+    "Termina siempre con punto final.",
 )
+
+# ---------- Búsqueda web (herramienta del lado del servidor de Anthropic) ----------
+# Deja que Claude busque en internet (el gateway tiene conexión). Cuesta aparte
+# (~$10/1000 búsquedas). Apágala con CLAUDE_WEB_SEARCH=false.
+CLAUDE_WEB_SEARCH = os.getenv("CLAUDE_WEB_SEARCH", "true").strip().lower() in (
+    "1", "true", "yes", "si", "sí",
+)
+# Máximo de búsquedas por consulta (control de costo).
+CLAUDE_WEB_SEARCH_MAX_USES = int(os.getenv("CLAUDE_WEB_SEARCH_MAX_USES", "5"))
+# Variante de la herramienta: la avanzada (filtra resultados) exige Sonnet/Opus;
+# la básica funciona en Haiku. Autoseleccionamos según el modelo.
+_WEB_SEARCH_ADVANCED_MODELS = ("sonnet", "opus")
+
+
+def _web_search_tool():
+    """Devuelve la definición de la herramienta de búsqueda web, o None si está
+    desactivada."""
+    if not CLAUDE_WEB_SEARCH:
+        return None
+    advanced = any(m in CLAUDE_MODEL for m in _WEB_SEARCH_ADVANCED_MODELS)
+    tool_type = "web_search_20260209" if advanced else "web_search_20250305"
+    return {
+        "type": tool_type,
+        "name": "web_search",
+        "max_uses": CLAUDE_WEB_SEARCH_MAX_USES,
+    }
+
+
 # Tope de bytes útiles por paquete Meshtastic (~237 real). Margen para "[i/n] ".
 _MESH_CHUNK_BYTES = 200
 
@@ -106,6 +139,45 @@ def _chunk_for_mesh(text: str, limit: int = _MESH_CHUNK_BYTES) -> list:
     return chunks or [""]
 
 
+def _extract_text(content) -> str:
+    """Une los bloques de texto de la respuesta (ignora bloques de herramienta)."""
+    parts = []
+    for b in content:
+        if getattr(b, "type", None) == "text":
+            parts.append(b.text)
+    return "".join(parts).strip()
+
+
+def _ask_claude(query: str) -> str:
+    """Llama a la API de Anthropic (con búsqueda web si está activa) y devuelve
+    el texto final. Maneja `pause_turn` reenviando la conversación."""
+    client = _anthropic_client.with_options(timeout=CLAUDE_TIMEOUT_SECONDS)
+    tools = []
+    tool = _web_search_tool()
+    if tool is not None:
+        tools.append(tool)
+
+    kwargs = {
+        "model": CLAUDE_MODEL,
+        "max_tokens": CLAUDE_MAX_TOKENS,
+        "system": CLAUDE_SYSTEM_PROMPT,
+    }
+    if tools:
+        kwargs["tools"] = tools
+
+    messages = [{"role": "user", "content": query}]
+    # Con herramientas del lado del servidor, la API puede pausar (pause_turn)
+    # si el bucle interno llega al límite; se reanuda reenviando el historial.
+    for _ in range(4):
+        resp = client.messages.create(messages=messages, **kwargs)
+        if resp.stop_reason == "pause_turn":
+            messages.append({"role": "assistant", "content": resp.content})
+            continue
+        return _extract_text(resp.content)
+    # Si agotó las reanudaciones, devuelve lo último que haya.
+    return _extract_text(resp.content)
+
+
 def handle_claude(interface, from_num, text: str) -> None:
     """Responde una consulta libre "@claude <pregunta>" con la API de Anthropic.
 
@@ -123,17 +195,7 @@ def handle_claude(interface, from_num, text: str) -> None:
 
     log.info("🤖 Consulta Claude de %s: %s", _node_hex(from_num), query)
     try:
-        resp = _anthropic_client.with_options(
-            timeout=CLAUDE_TIMEOUT_SECONDS
-        ).messages.create(
-            model=CLAUDE_MODEL,
-            max_tokens=CLAUDE_MAX_TOKENS,
-            system=CLAUDE_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": query}],
-        )
-        answer = next(
-            (b.text for b in resp.content if b.type == "text"), ""
-        ).strip()
+        answer = _ask_claude(query)
     except Exception as e:
         log.error("✗ Error consultando Claude: %s", e)
         send_text(interface, from_num, "Claude: error al consultar. Intenta de nuevo.")
