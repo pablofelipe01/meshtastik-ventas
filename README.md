@@ -25,9 +25,13 @@ flutter pub get
 flutter build apk --release
 ```
 
+📖 **Documentación completa de la app:** [`docs/APP.md`](docs/APP.md) — pestañas,
+estructura del código, permisos, ícono, primer uso y solución de problemas.
+
 ### Gateway (`gateway/`)
 Servicio Python que corre en la Pi. Escucha la mesh, registra el chat y, cuando
-detecta `@claude`, consulta a la API de Anthropic y responde por DM.
+detecta `@claude`, consulta a la API de Anthropic (con búsqueda web + memoria de
+conversación) y responde por DM.
 
 ```bash
 cd gateway
@@ -37,7 +41,8 @@ cp .env.example .env      # rellena ANTHROPIC_API_KEY
 python gateway.py --simulate   # prueba sin radio
 ```
 
-Despliegue como servicio systemd: ver `gateway/mesh-portatil-gateway.service`.
+📖 **Documentación completa del gateway:** [`gateway/README.md`](gateway/README.md) —
+protocolo `@claude`, búsqueda web, memoria, variables `.env` y despliegue systemd.
 
 ## Seguridad
 `gateway/.env` (con la API key) está en `.gitignore` y **no se commitea**. Los
