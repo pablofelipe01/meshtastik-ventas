@@ -1,3 +1,4 @@
 meshtastic
 anthropic
 python-dotenv
+requests

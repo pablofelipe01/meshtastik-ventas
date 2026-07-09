@@ -42,6 +42,7 @@ log = logging.getLogger("gateway")
 
 # claude_mesh comparte su propio logger; lo alineamos al mismo nivel.
 from claude_mesh import handle_claude, is_claude_query  # noqa: E402
+import bridge  # noqa: E402  puente mesh↔internet (Supabase); no-op si no está configurado
 
 
 def _node_hex(node_num) -> str:
@@ -105,9 +106,39 @@ def on_receive(packet, interface):
             ).start()
             return
 
-        # (Aquí, en el futuro, iría el dispatcher del protocolo pipe para DMs.)
+        # Puente familia↔campo: cualquier OTRO DM al gateway (no @claude) se
+        # reenvía a la familia (Supabase). Los mensajes de canal (broadcast)
+        # siguen siendo chat entre nodos: solo se registran.
+        if is_dm and bridge.ENABLED:
+            node_name = _node_name(interface, from_num)
+            threading.Thread(
+                target=bridge.handle_field_message,
+                args=(from_num, text, node_name),
+                daemon=True,
+            ).start()
+            return
     except Exception:
         log.error("Excepción en on_receive:\n%s", traceback.format_exc())
+
+
+def _node_name(interface, node_num) -> str:
+    """Nombre legible de un nodo desde el catálogo del radio, o su !hex."""
+    try:
+        for n in (getattr(interface, "nodes", None) or {}).values():
+            if n.get("num") == node_num:
+                user = n.get("user") or {}
+                return user.get("longName") or user.get("shortName") or _node_hex(node_num)
+    except Exception:
+        pass
+    return _node_hex(node_num)
+
+
+def _my_num() -> int:
+    iface = _conn.get()
+    try:
+        return iface.localNode.nodeNum if iface and iface.localNode else None
+    except Exception:
+        return None
 
 
 def on_connection(interface, topic=None):
@@ -157,6 +188,8 @@ def run_live():
     pub.subscribe(on_receive, "meshtastic.receive")
     pub.subscribe(on_connection, "meshtastic.connection.established")
     pub.subscribe(on_connection_lost, "meshtastic.connection.lost")
+
+    bridge.start(_conn, _my_num, _stop)
 
     log.info("🚀 Gateway en marcha. @claude activo. Ctrl-C para salir.")
     try:
