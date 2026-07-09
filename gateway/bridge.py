@@ -19,6 +19,7 @@ Config por .env:
   BRIDGE_POLL_SECONDS (def 4)          intervalo del sondeo de salientes
   BRIDGE_NODE_SYNC_SECONDS (def 45)    intervalo de sincronización de nodos
 """
+import json
 import logging
 import os
 import threading
@@ -103,25 +104,99 @@ def _ensure_node(node_num: int, node_id: str, name: str) -> None:
     }])
 
 
-# ---------- 1. Campo → familia ----------
-def handle_field_message(from_num: int, text: str, node_name: str) -> None:
-    """Guarda un DM de un nodo (que no es @claude) como mensaje from_field."""
-    if not ENABLED:
-        return
+# ---------- 1. Campo → familia (con cola local persistente) ----------
+# Los mensajes del campo se ESCRIBEN en Supabase con reintentos. Si el internet
+# del gateway está caído, quedan en una cola local (archivo JSON) y se reenvían
+# cuando vuelve la conexión — así ningún mensaje se pierde (sobrevive reinicios).
+_OUTBOX_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "outbox.json")
+_outbox = []               # [{id, node_num, contact_id, text, sender_name, ts}]
+_outbox_seq = 0
+_outbox_lock = threading.Lock()
+
+
+def _load_outbox() -> None:
+    global _outbox, _outbox_seq
     try:
-        _ensure_node(from_num, _node_hex(from_num), node_name)
-        r = _rest("POST", "messages", json={
-            "node_num": from_num,
-            "direction": "from_field",
+        with open(_OUTBOX_PATH) as f:
+            _outbox = json.load(f)
+        _outbox_seq = max((it.get("id", 0) for it in _outbox), default=0)
+        if _outbox:
+            log.info("📤 outbox: %d mensajes pendientes de sesiones previas",
+                     len(_outbox))
+    except FileNotFoundError:
+        _outbox = []
+    except Exception as e:
+        log.error("✗ outbox load: %s", e)
+        _outbox = []
+
+
+def _save_outbox() -> None:
+    try:
+        tmp = _OUTBOX_PATH + ".tmp"
+        with open(tmp, "w") as f:
+            json.dump(_outbox, f)
+        os.replace(tmp, _OUTBOX_PATH)
+    except Exception as e:
+        log.error("✗ outbox save: %s", e)
+
+
+def _enqueue_from_field(node_num: int, contact_id, text: str,
+                        node_name: str) -> None:
+    global _outbox_seq
+    with _outbox_lock:
+        _outbox_seq += 1
+        _outbox.append({
+            "id": _outbox_seq,
+            "node_num": node_num,
+            "contact_id": contact_id,
             "text": text,
             "sender_name": node_name,
-            "status": "delivered",
-            "delivered_at": _now_iso(),
-        }, headers=_headers())
-        r.raise_for_status()
-        log.info("📥 campo→familia de %s: %s", _node_hex(from_num), text)
-    except Exception as e:
-        log.error("✗ bridge from_field: %s", e)
+            "ts": _now_iso(),
+        })
+        _save_outbox()
+
+
+def _flush_outbox_once() -> None:
+    """Intenta escribir en Supabase los mensajes de campo pendientes. Se detiene
+    al primer fallo (probablemente sin internet) y reintenta el resto luego."""
+    with _outbox_lock:
+        items = list(_outbox)
+    if not items:
+        return
+    sent = set()
+    for it in items:
+        try:
+            _ensure_node(it["node_num"], _node_hex(it["node_num"]),
+                         it["sender_name"])
+            payload = {
+                "node_num": it["node_num"],
+                "direction": "from_field",
+                "text": it["text"],
+                "sender_name": it["sender_name"],
+                "status": "delivered",
+                "delivered_at": _now_iso(),
+            }
+            if it.get("contact_id") is not None:
+                payload["contact_id"] = it["contact_id"]
+            r = _rest("POST", "messages", json=payload, headers=_headers())
+            r.raise_for_status()
+            sent.add(it["id"])
+            log.info("📥 campo→familia → Supabase (contacto %s): %s",
+                     it.get("contact_id"), it["text"])
+        except Exception:
+            break  # sin internet: conserva TODO y reintenta el próximo ciclo
+    if sent:
+        with _outbox_lock:
+            _outbox[:] = [x for x in _outbox if x["id"] not in sent]
+            _save_outbox()
+
+
+def handle_field_message(from_num: int, text: str, node_name: str) -> None:
+    """Encola un DM de un nodo (que no es @claude) como mensaje from_field."""
+    if not ENABLED:
+        return
+    _enqueue_from_field(from_num, None, text, node_name)
+    log.info("📥 (encolado) campo→familia de %s: %s", _node_hex(from_num), text)
 
 
 def _sanitize_token(s: str) -> str:
@@ -177,26 +252,13 @@ def send_contacts(interface, node_num: int) -> None:
 
 def handle_field_directed(from_num: int, contact_id: int, text: str,
                           node_name: str) -> None:
-    """Guarda un mensaje dirigido del campo a un familiar (from_field con
+    """Encola un mensaje dirigido del campo a un familiar (from_field con
     contact_id). Formato de entrada del app: @fam|<contactId>|<texto>."""
     if not ENABLED:
         return
-    try:
-        _ensure_node(from_num, _node_hex(from_num), node_name)
-        r = _rest("POST", "messages", json={
-            "node_num": from_num,
-            "direction": "from_field",
-            "text": text,
-            "sender_name": node_name,
-            "contact_id": contact_id,
-            "status": "delivered",
-            "delivered_at": _now_iso(),
-        }, headers=_headers())
-        r.raise_for_status()
-        log.info("📥 campo→contacto %s de %s: %s",
-                 contact_id, _node_hex(from_num), text)
-    except Exception as e:
-        log.error("✗ bridge from_field dirigido: %s", e)
+    _enqueue_from_field(from_num, contact_id, text, node_name)
+    log.info("📥 (encolado) campo→contacto %s de %s: %s",
+             contact_id, _node_hex(from_num), text)
 
 
 # ---------- 2. Sincronización de nodos (mapa) ----------
@@ -287,6 +349,12 @@ def outbound_loop(conn_holder, stop_event) -> None:
     if not ENABLED:
         return
     while not stop_event.is_set():
+        # 1. Reintentar mensajes de campo pendientes de escribir en Supabase.
+        try:
+            _flush_outbox_once()
+        except Exception as e:
+            log.error("✗ bridge flush outbox: %s", e)
+        # 2. Entregar por la mesh los mensajes de familia pendientes.
         try:
             iface = conn_holder.get()
             if iface is not None:
@@ -310,6 +378,7 @@ def start(conn_holder, my_num_getter, stop_event) -> None:
         log.info("🌉 Puente Supabase desactivado (falta SUPABASE_URL/SERVICE_KEY).")
         return
     log.info("🌉 Puente Supabase activo → %s", SUPABASE_URL)
+    _load_outbox()
     threading.Thread(
         target=node_sync_loop, args=(conn_holder, my_num_getter, stop_event),
         daemon=True,

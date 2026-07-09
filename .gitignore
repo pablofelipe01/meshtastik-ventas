@@ -57,3 +57,7 @@ versiones/
 *.venv/
 .venv/
 iconvenv/
+
+# Cola local del gateway (runtime, se regenera)
+gateway/outbox.json
+gateway/outbox.json.tmp
