@@ -488,15 +488,69 @@ class MeshtasticService extends ChangeNotifier {
     }).toList();
   }
 
+  // ---------- Contactos (mensajería dirigida con la familia) ----------
+  final Map<int, String> _contacts = {}; // contactId -> nombre
+
   static final RegExp _fragRe = RegExp(r'^\[(\d+)/(\d+)\]\s*');
   static final RegExp _claudeRe = RegExp(r'^Claude:\s*');
   static final RegExp _atClaudeRe =
       RegExp(r'^\s*@claude\s*', caseSensitive: false);
   static final RegExp _senderRe = RegExp(r'^([^:]{1,40}):\s+(.*)$', dotAll: true);
+  // Salida propia: "@fam|<id>|<texto>"
+  static final RegExp _famOutRe =
+      RegExp(r'^@fam\|(\d+)\|(.*)$', caseSensitive: false, dotAll: true);
+  // Entrada del gateway: "FAM|<id>|<nombre>|<texto>"
+  static final RegExp _famInRe =
+      RegExp(r'^FAM\|(\d+)\|([^|]*)\|(.*)$', dotAll: true);
+
+  /// Pide al gateway la lista de contactos (familiares) de este nodo.
+  Future<bool> requestContacts() =>
+      sendChatMessage('@contactos', destinationId: currentGatewayNodeId);
+
+  /// Envía un mensaje dirigido a un familiar (formato `@fam|ID|texto`).
+  Future<bool> sendToContact(int contactId, String text) =>
+      sendChatMessage('@fam|$contactId|$text',
+          destinationId: currentGatewayNodeId);
+
+  /// Lista de contactos (id, nombre) conocida: la que envió el gateway más
+  /// cualquier contacto visto en mensajes. Ordenada por nombre.
+  List<MapEntry<int, String>> familyContactList() {
+    final entries = parseGatewayEntries(); // puebla _contacts
+    final map = <int, String>{..._contacts};
+    for (final e in entries) {
+      if (e.channel == GatewayChannel.family && e.contactId != null) {
+        map.putIfAbsent(
+            e.contactId!, () => e.senderName ?? 'Contacto ${e.contactId}');
+      }
+    }
+    final list = map.entries.toList()
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+    return list;
+  }
+
+  /// Mensajes dirigidos con un familiar específico.
+  List<GatewayEntry> contactMessages(int contactId) => parseGatewayEntries()
+      .where((e) =>
+          e.channel == GatewayChannel.family && e.contactId == contactId)
+      .toList();
+
+  void _parseContactList(String s) {
+    // "CONTACTOS|1:Mamá|2:Papá"
+    final parts = s.split('|');
+    for (var i = 1; i < parts.length; i++) {
+      final p = parts[i];
+      if (p.isEmpty) continue;
+      final c = p.indexOf(':');
+      if (c <= 0) continue;
+      final id = int.tryParse(p.substring(0, c));
+      final name = p.substring(c + 1).trim();
+      if (id != null && name.isNotEmpty) _contacts[id] = name;
+    }
+  }
 
   /// Procesa la conversación con el gateway: reensambla los fragmentos `[i/n]`
-  /// y clasifica cada mensaje en canal Claude o Familia. Ambas pestañas filtran
-  /// esta lista por `channel`.
+  /// y clasifica cada mensaje (Claude / Familia dirigida). Actualiza el mapa de
+  /// contactos como efecto secundario al ver un mensaje CONTACTOS.
   List<GatewayEntry> parseGatewayEntries() {
     final raw = getGatewayConversation();
     final entries = <GatewayEntry>[];
@@ -508,7 +562,8 @@ class MeshtasticService extends ChangeNotifier {
       if (buf.isEmpty) return;
       final combined = buf.join(' ').trim();
       final pending = expectedTotal != null && buf.length < expectedTotal!;
-      entries.add(_classifyIncoming(combined, bufTime ?? DateTime.now(), pending));
+      final e = _classifyIncoming(combined, bufTime ?? DateTime.now(), pending);
+      if (e != null) entries.add(e);
       buf.clear();
       expectedTotal = null;
       bufTime = null;
@@ -517,23 +572,37 @@ class MeshtasticService extends ChangeNotifier {
     for (final m in raw) {
       if (m.isMine) {
         flush();
-        final isClaude = m.messageText.trimLeft().toLowerCase().startsWith('@claude');
-        final t = isClaude
-            ? m.messageText.replaceFirst(_atClaudeRe, '')
-            : m.messageText;
-        entries.add(GatewayEntry(
-          text: t.isEmpty ? '(vacío)' : t,
-          isMine: true,
-          timestamp: m.timestamp,
-          deliveryStatus: m.deliveryStatus,
-          channel: isClaude ? GatewayChannel.claude : GatewayChannel.family,
-        ));
+        final t0 = m.messageText.trim();
+        final low = t0.toLowerCase();
+        if (low.startsWith('@claude')) {
+          final t = m.messageText.replaceFirst(_atClaudeRe, '');
+          entries.add(GatewayEntry(
+            text: t.isEmpty ? '(vacío)' : t,
+            isMine: true,
+            timestamp: m.timestamp,
+            deliveryStatus: m.deliveryStatus,
+            channel: GatewayChannel.claude,
+          ));
+        } else if (low == '@contactos') {
+          // comando, no se muestra
+        } else {
+          final fo = _famOutRe.firstMatch(t0);
+          entries.add(GatewayEntry(
+            text: fo != null ? fo.group(2)! : m.messageText,
+            isMine: true,
+            timestamp: m.timestamp,
+            deliveryStatus: m.deliveryStatus,
+            contactId: fo != null ? int.tryParse(fo.group(1)!) : null,
+            channel: GatewayChannel.family,
+          ));
+        }
         continue;
       }
       final match = _fragRe.firstMatch(m.messageText);
       if (match == null) {
         flush();
-        entries.add(_classifyIncoming(m.messageText, m.timestamp, false));
+        final e = _classifyIncoming(m.messageText, m.timestamp, false);
+        if (e != null) entries.add(e);
       } else {
         final idx = int.parse(match.group(1)!);
         final total = int.parse(match.group(2)!);
@@ -548,7 +617,9 @@ class MeshtasticService extends ChangeNotifier {
     return entries;
   }
 
-  GatewayEntry _classifyIncoming(String combined, DateTime ts, bool pending) {
+  /// Clasifica un mensaje entrante del gateway. Devuelve null si no es de chat
+  /// (p.ej. CONTACTOS, que solo actualiza el mapa de contactos).
+  GatewayEntry? _classifyIncoming(String combined, DateTime ts, bool pending) {
     if (_claudeRe.hasMatch(combined)) {
       return GatewayEntry(
         text: combined.replaceFirst(_claudeRe, ''),
@@ -556,6 +627,25 @@ class MeshtasticService extends ChangeNotifier {
         timestamp: ts,
         pending: pending,
         channel: GatewayChannel.claude,
+      );
+    }
+    if (combined.startsWith('CONTACTOS|')) {
+      _parseContactList(combined);
+      return null;
+    }
+    final fi = _famInRe.firstMatch(combined);
+    if (fi != null) {
+      final id = int.tryParse(fi.group(1)!);
+      final name = fi.group(2)!.trim();
+      if (id != null && name.isNotEmpty) _contacts[id] = name;
+      return GatewayEntry(
+        text: fi.group(3)!,
+        isMine: false,
+        timestamp: ts,
+        pending: pending,
+        senderName: name.isEmpty ? null : name,
+        contactId: id,
+        channel: GatewayChannel.family,
       );
     }
     final fm = _senderRe.firstMatch(combined);

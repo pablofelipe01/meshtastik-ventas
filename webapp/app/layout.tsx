@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import SwRegister from "@/components/SwRegister";
+import { AuthProvider } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: "Mesh Familia",
@@ -32,7 +33,7 @@ export default function RootLayout({
   return (
     <html lang="es" className="h-full">
       <body className="min-h-full bg-slate-100 text-slate-900 antialiased">
-        {children}
+        <AuthProvider>{children}</AuthProvider>
         <SwRegister />
       </body>
     </html>

@@ -124,6 +124,81 @@ def handle_field_message(from_num: int, text: str, node_name: str) -> None:
         log.error("✗ bridge from_field: %s", e)
 
 
+def _sanitize_token(s: str) -> str:
+    """Quita separadores del protocolo (| y :) de nombres para la mesh."""
+    return (s or "").replace("|", " ").replace(":", " ").strip()
+
+
+def _send_fragmented(interface, node_num: int, body: str) -> None:
+    """Envía un texto por la mesh, fragmentando con [i/n] si no cabe."""
+    chunks = _chunk_for_mesh(body)
+    total = len(chunks)
+    for i, chunk in enumerate(chunks, 1):
+        out = chunk if total == 1 else f"[{i}/{total}] {chunk}"
+        send_text(interface, node_num, out)
+
+
+# ---------- Mensajería dirigida: contactos ----------
+def get_node_contacts(node_num: int) -> list:
+    """Contactos (familiares) asignados a un nodo: [{id, name}]."""
+    r = _rest(
+        "GET",
+        f"node_contacts?node_num=eq.{node_num}&select=contacts(id,name)",
+        headers=_headers(),
+    )
+    r.raise_for_status()
+    out = []
+    for row in r.json():
+        c = row.get("contacts") or {}
+        if c.get("id") is not None:
+            out.append({"id": c["id"], "name": c.get("name") or ""})
+    return out
+
+
+def send_contacts(interface, node_num: int) -> None:
+    """Responde por la mesh la lista de contactos del nodo:
+    CONTACTOS|<id>:<nombre>|<id>:<nombre>|..."""
+    if not ENABLED:
+        return
+    try:
+        contacts = get_node_contacts(node_num)
+        if not contacts:
+            send_text(interface, node_num, "CONTACTOS|")
+            log.info("📇 contactos → %s: (ninguno)", _node_hex(node_num))
+            return
+        body = "CONTACTOS|" + "|".join(
+            f"{c['id']}:{_sanitize_token(c['name'])}" for c in contacts
+        )
+        _send_fragmented(interface, node_num, body)
+        log.info("📇 contactos → %s: %d", _node_hex(node_num), len(contacts))
+    except Exception as e:
+        log.error("✗ bridge contactos: %s", e)
+
+
+def handle_field_directed(from_num: int, contact_id: int, text: str,
+                          node_name: str) -> None:
+    """Guarda un mensaje dirigido del campo a un familiar (from_field con
+    contact_id). Formato de entrada del app: @fam|<contactId>|<texto>."""
+    if not ENABLED:
+        return
+    try:
+        _ensure_node(from_num, _node_hex(from_num), node_name)
+        r = _rest("POST", "messages", json={
+            "node_num": from_num,
+            "direction": "from_field",
+            "text": text,
+            "sender_name": node_name,
+            "contact_id": contact_id,
+            "status": "delivered",
+            "delivered_at": _now_iso(),
+        }, headers=_headers())
+        r.raise_for_status()
+        log.info("📥 campo→contacto %s de %s: %s",
+                 contact_id, _node_hex(from_num), text)
+    except Exception as e:
+        log.error("✗ bridge from_field dirigido: %s", e)
+
+
 # ---------- 2. Sincronización de nodos (mapa) ----------
 def _sync_nodes_once(interface, my_num) -> None:
     nodes = getattr(interface, "nodes", None) or {}
@@ -194,16 +269,18 @@ def _mark(msg_id: str, status: str) -> None:
 
 def _deliver_to_field(interface, msg) -> None:
     node_num = msg["node_num"]
-    sender = (msg.get("sender_name") or "Familia").strip()
-    # Prefijo para que el trabajador sepa quién le escribe.
-    body = f"{sender}: {msg['text']}"
-    chunks = _chunk_for_mesh(body)
-    total = len(chunks)
-    for i, chunk in enumerate(chunks, 1):
-        out = chunk if total == 1 else f"[{i}/{total}] {chunk}"
-        send_text(interface, node_num, out)
+    sender = _sanitize_token(msg.get("sender_name") or "Familia")
+    cid = msg.get("contact_id")
+    if cid is not None:
+        # Dirigido: la app enruta por contact_id → FAM|<id>|<nombre>|<texto>
+        body = f"FAM|{cid}|{sender}|{msg['text']}"
+    else:
+        # Legacy sin contacto: prefijo con el nombre.
+        body = f"{sender}: {msg['text']}"
+    _send_fragmented(interface, node_num, body)
     _mark(msg["id"], "sent")
-    log.info("📤 familia→campo a %s: %s", _node_hex(node_num), msg["text"])
+    log.info("📤 familia→campo a %s (contacto %s): %s",
+             _node_hex(node_num), cid, msg["text"])
 
 
 def outbound_loop(conn_holder, stop_event) -> None:

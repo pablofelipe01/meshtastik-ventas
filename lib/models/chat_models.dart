@@ -31,6 +31,7 @@ class GatewayEntry {
   final DeliveryStatus deliveryStatus;
   final bool pending; // respuesta parcial (aún llegan fragmentos)
   final String? senderName; // para mensajes entrantes de familia ("Nombre: ...")
+  final int? contactId; // familiar destinatario/remitente (mensajería dirigida)
   final GatewayChannel channel;
 
   GatewayEntry({
@@ -40,6 +41,7 @@ class GatewayEntry {
     this.deliveryStatus = DeliveryStatus.none,
     this.pending = false,
     this.senderName,
+    this.contactId,
     required this.channel,
   });
 }

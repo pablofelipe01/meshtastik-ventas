@@ -5,22 +5,22 @@ import '../models/chat_models.dart';
 import '../services/meshtastic_service.dart';
 import '../widgets/delivery_indicator.dart';
 
-/// Pantalla de conversación con el gateway, reutilizable para dos canales:
-///  - [GatewayChannel.claude]: la app antepone `@claude` al enviar; muestra las
-///    respuestas de la IA (reensamblando fragmentos).
-///  - [GatewayChannel.family]: envía texto plano (el gateway lo reenvía a la
-///    familia por internet); muestra los mensajes que la familia manda de vuelta.
-///
-/// Ambos canales comparten el mismo nodo gateway por DM; se separan por prefijo
-/// vía [MeshtasticService.parseGatewayEntries].
+/// Pantalla de conversación con el gateway. Dos modos:
+///  - [GatewayChannel.claude]: antepone `@claude`; muestra respuestas de la IA.
+///  - [GatewayChannel.family] con [contactId]: envía dirigido a un familiar
+///    (`@fam|id|texto`) y muestra la conversación con esa persona.
 class GatewayChatScreen extends StatefulWidget {
   final MeshtasticService meshtasticService;
   final GatewayChannel channel;
+  final int? contactId; // requerido para el canal familia
+  final String? contactName;
 
   const GatewayChatScreen({
     super.key,
     required this.meshtasticService,
     required this.channel,
+    this.contactId,
+    this.contactName,
   });
 
   @override
@@ -36,14 +36,15 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
   MeshtasticService get _service => widget.meshtasticService;
   bool get _isClaude => widget.channel == GatewayChannel.claude;
 
-  // Presentación según el canal.
-  String get _title => _isClaude ? 'Claude' : 'Familia';
-  IconData get _titleIcon => _isClaude ? Icons.smart_toy : Icons.people;
+  String get _title =>
+      _isClaude ? 'Claude' : (widget.contactName ?? 'Familia');
+  IconData get _titleIcon => _isClaude ? Icons.smart_toy : Icons.person;
   IconData get _senderIcon => _isClaude ? Icons.smart_toy : Icons.person;
   Color get _accent => _isClaude ? Colors.blueGrey : Colors.green.shade700;
-  String get _sendPrefix => _isClaude ? '@claude ' : '';
   String get _hint =>
-      _isClaude ? 'Pregúntale a Claude…' : 'Escribe a tu familia…';
+      _isClaude ? 'Pregúntale a Claude…' : 'Escribe a $_title…';
+  String get _wirePrefix =>
+      _isClaude ? '@claude ' : '@fam|${widget.contactId}|';
 
   @override
   void initState() {
@@ -82,10 +83,13 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
     final q = _controller.text.trim();
     if (q.isEmpty || !_service.isConnected) return;
     setState(() => _isSending = true);
-    final ok = await _service.sendChatMessage(
-      '$_sendPrefix$q',
-      destinationId: _service.currentGatewayNodeId,
-    );
+    final bool ok;
+    if (_isClaude) {
+      ok = await _service.sendChatMessage('@claude $q',
+          destinationId: _service.currentGatewayNodeId);
+    } else {
+      ok = await _service.sendToContact(widget.contactId!, q);
+    }
     setState(() => _isSending = false);
     if (ok) {
       _controller.clear();
@@ -97,10 +101,15 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
     }
   }
 
-  List<GatewayEntry> get _entries => _service
-      .parseGatewayEntries()
-      .where((e) => e.channel == widget.channel)
-      .toList();
+  List<GatewayEntry> get _entries {
+    if (_isClaude) {
+      return _service
+          .parseGatewayEntries()
+          .where((e) => e.channel == GatewayChannel.claude)
+          .toList();
+    }
+    return _service.contactMessages(widget.contactId!);
+  }
 
   Widget _buildBubble(GatewayEntry e) {
     final align = e.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
@@ -108,7 +117,7 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
         ? Colors.blue.shade100
         : Theme.of(context).colorScheme.surfaceContainerHighest;
     final senderLabel =
-        _isClaude ? 'Claude' : (e.senderName ?? 'Familia');
+        _isClaude ? 'Claude' : (e.senderName ?? _title);
     return Container(
       margin: EdgeInsets.only(
         left: e.isMine ? 48 : 8,
@@ -178,20 +187,19 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
   }
 
   Widget _buildEmpty() {
-    final title = _isClaude ? 'Pregúntale a Claude' : 'Chat con tu familia';
+    final title = _isClaude ? 'Pregúntale a Claude' : 'Chat con $_title';
     final body = _isClaude
         ? 'Escribe cualquier pregunta. Va por la red mesh al gateway, que '
             'consulta a Claude y responde aquí. No necesitas internet en el teléfono.'
-        : 'Escribe un mensaje. Viaja por la red mesh hasta el gateway y de ahí '
-            'por internet a tu familia. Sus respuestas aparecen aquí. Sin '
-            'internet ni celular en el teléfono.';
+        : 'Escribe un mensaje. Viaja por la mesh al gateway y de ahí por '
+            'internet a $_title. Sus respuestas aparecen aquí.';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(_isClaude ? Icons.smart_toy_outlined : Icons.people_outline,
+            Icon(_isClaude ? Icons.smart_toy_outlined : Icons.person_outline,
                 size: 64, color: _accent),
             const SizedBox(height: 16),
             Text(title,
@@ -211,7 +219,7 @@ class _GatewayChatScreenState extends State<GatewayChatScreen> {
     final entries = _entries;
     final maxBytes = MeshtasticService.maxMessageBytes;
     final bytes = MeshtasticService.getUtf8ByteLength(
-        '$_sendPrefix${_controller.text}');
+        '$_wirePrefix${_controller.text}');
     final tooLong = bytes > maxBytes;
     final canSend = _service.isConnected && !_isSending && !tooLong;
 

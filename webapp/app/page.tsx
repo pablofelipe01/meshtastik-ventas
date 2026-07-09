@@ -3,11 +3,13 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { Node, nodeName } from "@/lib/types";
 import { timeAgo } from "@/lib/format";
 import NodesMap from "@/components/NodesMap";
 
 export default function Home() {
+  const { contact, signOut } = useAuth();
   const [nodes, setNodes] = useState<Node[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -40,12 +42,18 @@ export default function Home() {
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col">
       <header className="flex items-center gap-2 bg-blue-700 px-4 py-3 text-white shadow">
         <span className="text-lg">📡</span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="text-base font-semibold leading-tight">Mesh Familia</h1>
-          <p className="text-xs text-blue-100">
-            Escribe a los nodos en campo · sin internet allá
+          <p className="truncate text-xs text-blue-100">
+            {contact ? `Hola, ${contact.name}` : "Cargando…"}
           </p>
         </div>
+        <button
+          onClick={signOut}
+          className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+        >
+          Salir
+        </button>
       </header>
 
       <div className="h-[38dvh] w-full bg-slate-200">

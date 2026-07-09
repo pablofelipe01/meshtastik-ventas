@@ -106,11 +106,35 @@ def on_receive(packet, interface):
             ).start()
             return
 
-        # Puente familia↔campo: cualquier OTRO DM al gateway (no @claude) se
-        # reenvía a la familia (Supabase). Los mensajes de canal (broadcast)
-        # siguen siendo chat entre nodos: solo se registran.
+        # Puente familia↔campo (solo DMs al gateway; broadcast = chat entre nodos).
         if is_dm and bridge.ENABLED:
             node_name = _node_name(interface, from_num)
+            stripped = text.strip()
+
+            # "@contactos" → responder la lista de contactos del nodo.
+            if stripped.lower() == "@contactos":
+                threading.Thread(
+                    target=bridge.send_contacts,
+                    args=(_conn.get() or interface, from_num),
+                    daemon=True,
+                ).start()
+                return
+
+            # "@fam|<contactId>|<texto>" → mensaje dirigido a un familiar.
+            if stripped.lower().startswith("@fam|"):
+                parts = stripped.split("|", 2)  # ["@fam", id, texto...]
+                if len(parts) == 3 and parts[1].isdigit():
+                    contact_id = int(parts[1])
+                    body = parts[2]
+                    threading.Thread(
+                        target=bridge.handle_field_directed,
+                        args=(from_num, contact_id, body, node_name),
+                        daemon=True,
+                    ).start()
+                    return
+                # formato inválido → ignora (o cae a legacy abajo)
+
+            # Cualquier otro DM (texto plano) → familia sin dirigir (legacy).
             threading.Thread(
                 target=bridge.handle_field_message,
                 args=(from_num, text, node_name),

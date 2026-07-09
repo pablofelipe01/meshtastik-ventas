@@ -3,10 +3,10 @@
 import { use, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
 import { Message, Node, nodeName, Status } from "@/lib/types";
 import { hhmm } from "@/lib/format";
 
-const SENDER_KEY = "mesh_family_sender";
 const MAX_BYTES = 200; // cabe en un paquete mesh (el gateway fragmenta si excede)
 
 function statusLabel(s: Status): string {
@@ -33,18 +33,13 @@ export default function NodeChat({
 }) {
   const { nodeNum: nodeNumStr } = use(params);
   const nodeNum = Number(nodeNumStr);
+  const { contact } = useAuth();
 
   const [node, setNode] = useState<Node | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [text, setText] = useState("");
-  const [sender, setSender] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  // Nombre de quien escribe (persistido en el navegador).
-  useEffect(() => {
-    setSender(localStorage.getItem(SENDER_KEY) ?? "");
-  }, []);
 
   useEffect(() => {
     let active = true;
@@ -107,9 +102,7 @@ export default function NodeChat({
 
   async function send() {
     const body = text.trim();
-    const who = sender.trim();
-    if (!body || sending) return;
-    if (who) localStorage.setItem(SENDER_KEY, who);
+    if (!body || sending || !contact) return;
     setSending(true);
     const { data, error } = await supabase
       .from("messages")
@@ -117,7 +110,8 @@ export default function NodeChat({
         node_num: nodeNum,
         direction: "to_field",
         text: body,
-        sender_name: who || "Familia",
+        sender_name: contact.name,
+        contact_id: contact.id,
         status: "pending",
       })
       .select()
@@ -197,15 +191,6 @@ export default function NodeChat({
       </div>
 
       <div className="border-t border-slate-200 bg-white p-2">
-        <div className="mb-2 flex items-center gap-2 px-1">
-          <span className="text-xs text-slate-400">Tu nombre:</span>
-          <input
-            value={sender}
-            onChange={(e) => setSender(e.target.value)}
-            placeholder="p. ej. Mamá"
-            className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-400"
-          />
-        </div>
         <div className="flex items-end gap-2">
           <textarea
             value={text}

@@ -8,6 +8,7 @@ import 'models/chat_models.dart';
 import 'services/meshtastic_service.dart';
 import 'services/foreground_connection.dart';
 import 'screens/gateway_chat_screen.dart';
+import 'screens/family_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
 
@@ -380,8 +381,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         return GatewayChatScreen(
             meshtasticService: _service, channel: GatewayChannel.claude);
       case 1:
-        return GatewayChatScreen(
-            meshtasticService: _service, channel: GatewayChannel.family);
+        return FamilyScreen(meshtasticService: _service);
       case 2:
         return ChatScreen(meshtasticService: _service);
       case 3:
