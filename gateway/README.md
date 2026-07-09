@@ -74,7 +74,43 @@ Cada nodo mantiene su **propio hilo**, así los seguimientos funcionan:
 
 El chat normal entre nodos lo transporta la **mesh nativa de Meshtastic**; el
 gateway no interviene, solo lo **registra** en sus logs (líneas `💬`). Únicamente
-los mensajes que empiezan por `@claude` disparan una respuesta.
+los mensajes que empiezan por `@claude` (o el protocolo `@fam`/`@contactos`)
+disparan acción del gateway.
+
+---
+
+## Puente familia↔campo (mensajería dirigida)
+
+Si el gateway tiene configurado Supabase (ver variables abajo), sirve de puente
+entre los nodos de campo (sin internet) y sus familiares (en internet, vía la PWA
+`webapp/`). Mensajería **dirigida persona↔persona** con privacidad por usuario.
+
+### Protocolo por la mesh (app Flutter ↔ gateway, por DM)
+
+| Mensaje del app → gateway | Acción |
+| --- | --- |
+| `@contactos` | El gateway responde `CONTACTOS\|<id>:<nombre>\|...` con los familiares asignados a ese nodo (desde Supabase). |
+| `@fam\|<id>\|<texto>` | Mensaje dirigido del campo a un familiar (id de contacto). Se guarda en Supabase como `from_field` con `contact_id`. |
+| texto plano (DM, sin prefijo) | Legacy: mensaje a familia sin dirigir (`contact_id` nulo). |
+
+| Mensaje del gateway → app | Significado |
+| --- | --- |
+| `FAM\|<id>\|<nombre>\|<texto>` | Mensaje de un familiar hacia el nodo (fragmentado con `[i/n]` si es largo). El app lo agrupa por contacto. |
+
+### Cola local (outbox) — sin pérdida de mensajes
+
+Los mensajes del campo (`from_field`) **no se escriben directo** a Supabase: se
+**encolan** en `outbox.json` (persistente en la Pi) y un hilo los reintenta hasta
+escribirlos. Así, si el internet del gateway se cae (típico con el hotspot del
+celular), ningún mensaje se pierde — se entregan cuando vuelve la conexión, y
+sobreviven reinicios/apagones. Es simétrico al sentido familia→campo (que se
+encola en Supabase y el gateway reintenta la entrega por la mesh).
+
+### Sincronización de nodos (mapa)
+
+Cada `BRIDGE_NODE_SYNC_SECONDS` el gateway vuelca el catálogo de nodos del radio
+(nombre, batería, **GPS**) a la tabla `nodes` de Supabase → alimenta el mapa de
+la PWA.
 
 ---
 
@@ -97,10 +133,17 @@ API key). El gateway lo carga con `python-dotenv`.
 | `CLAUDE_MEMORY` | `true` | Activa/desactiva la memoria de conversación por nodo. `false` = cada `@claude` es independiente. |
 | `CLAUDE_MEMORY_TTL_MIN` | `5` | Minutos de inactividad tras los que se olvida el hilo de un nodo. |
 | `CLAUDE_MEMORY_MAX_TURNS` | `8` | Máximo de intercambios (pregunta+respuesta) que se recuerdan por nodo. |
+| `SUPABASE_URL` | *(vacío)* | URL del proyecto Supabase. **Activa el puente familia↔campo** junto con la service key. |
+| `SUPABASE_SERVICE_KEY` | *(vacío)* | Clave `service_role` de Supabase (secreta; ignora RLS). Requerida para el puente. |
+| `BRIDGE_POLL_SECONDS` | `4` | Intervalo del poller de salientes (familia→campo) y del reintento del outbox. |
+| `BRIDGE_NODE_SYNC_SECONDS` | `45` | Intervalo de sincronización de nodos+GPS a Supabase. |
 
 > **Costo:** además de los tokens del modelo, cada búsqueda web se factura aparte
 > (~$0.01/búsqueda). Baja `CLAUDE_WEB_SEARCH_MAX_USES` o pon `CLAUDE_WEB_SEARCH=false`
 > para acotar el gasto.
+>
+> **Puente:** sin `SUPABASE_URL` + `SUPABASE_SERVICE_KEY` el puente familia↔campo
+> queda desactivado (el gateway solo hace chat + `@claude`).
 
 ---
 
