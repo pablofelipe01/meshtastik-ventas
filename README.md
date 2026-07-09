@@ -8,6 +8,12 @@ El único nodo con internet es el gateway (una Raspberry Pi).
 App Flutter ──BLE──► Nodo mesh ──LoRa──► Nodo gateway ──USB──► Gateway Pi ──WiFi──► Claude
 ```
 
+También incluye un **puente mesh↔internet**: alguien en campo (sin internet) chatea
+con su familia por medio del gateway y una **PWA** (Next.js + Supabase + Google
+Maps) en producción: **https://meshtastik-ventas.vercel.app** (código en
+[`webapp/`](webapp/)). La familia ve los nodos en un mapa por GPS y les escribe;
+los mensajes viajan por internet al gateway y por la mesh al nodo, y viceversa.
+
 ## Componentes
 
 ### App Flutter (`lib/`, `packages/`)
