@@ -42,7 +42,9 @@ log = logging.getLogger("gateway")
 
 # claude_mesh comparte su propio logger; lo alineamos al mismo nivel.
 from claude_mesh import handle_claude, is_claude_query  # noqa: E402
+from claude_mesh import _chunk_for_mesh, send_text  # noqa: E402
 import bridge  # noqa: E402  puente mesh↔internet (Supabase); no-op si no está configurado
+import mailer  # noqa: E402  envío de correos desde la mesh; no-op si no hay SMTP
 
 
 def _node_hex(node_num) -> str:
@@ -50,6 +52,53 @@ def _node_hex(node_num) -> str:
         return f"!{int(node_num) & 0xFFFFFFFF:08x}"
     except (TypeError, ValueError):
         return str(node_num)
+
+
+# ---------- Correo desde la mesh (@correos / @mail) ----------
+def _send_frag(interface, node_num: int, body: str) -> None:
+    """Envía texto por la mesh, fragmentando con [i/n] si no cabe en un paquete."""
+    chunks = _chunk_for_mesh(body)
+    total = len(chunks)
+    for i, chunk in enumerate(chunks, 1):
+        out = chunk if total == 1 else f"[{i}/{total}] {chunk}"
+        send_text(interface, node_num, out)
+
+
+def _clean_field(s: str) -> str:
+    """Quita separadores del protocolo (| y :) de un campo para la mesh."""
+    return (s or "").replace("|", " ").replace(":", " ").strip()
+
+
+def _send_email_contacts(interface, node_num: int) -> None:
+    """Responde la libreta de correos: EMAILS|<alias>:<nombre>|..."""
+    try:
+        contacts = mailer.list_contacts()
+        if not contacts:
+            send_text(interface, node_num, "EMAILS|")
+            log.info("✉️  libreta → %s: (vacía)", _node_hex(node_num))
+            return
+        body = "EMAILS|" + "|".join(
+            f"{_clean_field(c.get('alias'))}:"
+            f"{_clean_field(c.get('name') or c.get('alias'))}"
+            for c in contacts if c.get("alias")
+        )
+        _send_frag(interface, node_num, body)
+        log.info("✉️  libreta → %s: %d", _node_hex(node_num), len(contacts))
+    except Exception as e:
+        log.error("✗ libreta de correos: %s", e)
+
+
+def _handle_mail(interface, node_num: int, stripped: str) -> None:
+    """Procesa '@mail|<destinatario>|<asunto>|<cuerpo>' y envía por SMTP."""
+    parts = stripped.split("|", 3)  # ["@mail", dest, asunto, cuerpo...]
+    if len(parts) < 4 or not parts[1].strip():
+        send_text(interface, node_num,
+                  "MAIL|err|Formato inválido. Usa destinatario, asunto y mensaje.")
+        return
+    dest, asunto, cuerpo = parts[1].strip(), parts[2], parts[3]
+    result = mailer.send_email(dest, asunto, cuerpo)
+    ok = result.startswith("Correo enviado")
+    _send_frag(interface, node_num, f"MAIL|{'ok' if ok else 'err'}|{result}")
 
 
 # ---------- Interface holder (para que los hilos lean siempre el vivo) ----------
@@ -105,6 +154,24 @@ def on_receive(packet, interface):
                 daemon=True,
             ).start()
             return
+
+        # Correo desde la mesh (independiente del puente). Solo DMs al gateway.
+        if is_dm and mailer.ENABLED:
+            low = text.strip().lower()
+            if low == "@correos":
+                threading.Thread(
+                    target=_send_email_contacts,
+                    args=(_conn.get() or interface, from_num),
+                    daemon=True,
+                ).start()
+                return
+            if low.startswith("@mail|"):
+                threading.Thread(
+                    target=_handle_mail,
+                    args=(_conn.get() or interface, from_num, text.strip()),
+                    daemon=True,
+                ).start()
+                return
 
         # Puente familia↔campo (solo DMs al gateway; broadcast = chat entre nodos).
         if is_dm and bridge.ENABLED:

@@ -58,6 +58,28 @@ def _resolve_alias(alias: str):
         return None
 
 
+def list_contacts() -> list:
+    """Devuelve la libreta de correos [{alias, name, email}] ordenada por alias.
+    Para poblar el dropdown de la app (comando @correos)."""
+    if not (_SUPABASE_URL and _SUPABASE_KEY):
+        return []
+    try:
+        r = requests.get(
+            f"{_SUPABASE_URL}/rest/v1/email_contacts"
+            f"?select=alias,name,email&order=alias",
+            headers={
+                "apikey": _SUPABASE_KEY,
+                "Authorization": f"Bearer {_SUPABASE_KEY}",
+            },
+            timeout=15,
+        )
+        r.raise_for_status()
+        return r.json()
+    except Exception as e:
+        log.error("✗ listar libreta de correos: %s", e)
+        return []
+
+
 def send_email(destinatario: str, asunto: str, cuerpo: str) -> str:
     """Envía un correo. `destinatario` puede ser un email completo o un alias de
     la libreta. Devuelve un mensaje legible del resultado (para Claude/el nodo)."""

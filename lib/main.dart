@@ -9,6 +9,7 @@ import 'services/meshtastic_service.dart';
 import 'services/foreground_connection.dart';
 import 'screens/gateway_chat_screen.dart';
 import 'screens/family_screen.dart';
+import 'screens/email_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
 
@@ -383,8 +384,10 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       case 1:
         return FamilyScreen(meshtasticService: _service);
       case 2:
-        return ChatScreen(meshtasticService: _service);
+        return EmailScreen(meshtasticService: _service);
       case 3:
+        return ChatScreen(meshtasticService: _service);
+      case 4:
         return SettingsScreen(
           meshtasticService: _service,
           onDeviceChange: _navigateToDeviceSelection,
@@ -403,7 +406,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          if (index == 2) _service.clearUnreadChat();
+          if (index == 3) _service.clearUnreadChat();
           setState(() => _currentIndex = index);
         },
         destinations: [
@@ -416,6 +419,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             icon: Icon(Icons.people_outline),
             selectedIcon: Icon(Icons.people),
             label: 'Familia',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.email_outlined),
+            selectedIcon: Icon(Icons.email),
+            label: 'Correo',
           ),
           NavigationDestination(
             icon: Badge(

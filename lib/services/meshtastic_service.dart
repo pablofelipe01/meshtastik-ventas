@@ -488,6 +488,58 @@ class MeshtasticService extends ChangeNotifier {
     }).toList();
   }
 
+  // ---------- Correo (libreta + envío por @claude/@mail) ----------
+  final Map<String, String> _emailContacts = {}; // alias -> nombre
+  String? _lastEmailResult; // texto legible del último envío
+  bool _lastEmailOk = false;
+  DateTime? _lastEmailAt; // cuándo llegó la última respuesta MAIL|
+
+  String? get lastEmailResult => _lastEmailResult;
+  bool get lastEmailOk => _lastEmailOk;
+  DateTime? get lastEmailAt => _lastEmailAt;
+
+  /// Pide al gateway la libreta de correos de este nodo (alias→nombre).
+  Future<bool> requestEmailContacts() =>
+      sendChatMessage('@correos', destinationId: currentGatewayNodeId);
+
+  /// Envía un correo por el gateway. `dest` es un alias de la libreta o un email
+  /// completo. Formato de mesh: `@mail|dest|asunto|cuerpo`.
+  Future<bool> sendEmail(String dest, String subject, String body) =>
+      sendChatMessage('@mail|$dest|$subject|$body',
+          destinationId: currentGatewayNodeId);
+
+  /// Libreta de correos conocida (alias, nombre), ordenada por nombre.
+  List<MapEntry<String, String>> emailContactList() {
+    parseGatewayEntries(); // efecto secundario: puebla _emailContacts
+    final list = _emailContacts.entries.toList()
+      ..sort((a, b) => a.value.toLowerCase().compareTo(b.value.toLowerCase()));
+    return list;
+  }
+
+  void _parseEmailList(String s) {
+    // "EMAILS|alias:Nombre|alias:Nombre"
+    _emailContacts.clear();
+    final parts = s.split('|');
+    for (var i = 1; i < parts.length; i++) {
+      final p = parts[i];
+      if (p.isEmpty) continue;
+      final c = p.indexOf(':');
+      if (c <= 0) continue;
+      final alias = p.substring(0, c).trim();
+      final name = p.substring(c + 1).trim();
+      if (alias.isNotEmpty) _emailContacts[alias] = name.isEmpty ? alias : name;
+    }
+  }
+
+  void _parseMailResult(String s) {
+    // "MAIL|ok|texto"  o  "MAIL|err|texto"
+    final parts = s.split('|');
+    if (parts.length < 3) return;
+    _lastEmailOk = parts[1].trim().toLowerCase() == 'ok';
+    _lastEmailResult = parts.sublist(2).join('|').trim();
+    _lastEmailAt = DateTime.now();
+  }
+
   // ---------- Contactos (mensajería dirigida con la familia) ----------
   final Map<int, String> _contacts = {}; // contactId -> nombre
 
@@ -583,8 +635,10 @@ class MeshtasticService extends ChangeNotifier {
             deliveryStatus: m.deliveryStatus,
             channel: GatewayChannel.claude,
           ));
-        } else if (low == '@contactos') {
-          // comando, no se muestra
+        } else if (low == '@contactos' ||
+            low == '@correos' ||
+            low.startsWith('@mail|')) {
+          // comando, no se muestra en el chat
         } else {
           final fo = _famOutRe.firstMatch(t0);
           entries.add(GatewayEntry(
@@ -631,6 +685,14 @@ class MeshtasticService extends ChangeNotifier {
     }
     if (combined.startsWith('CONTACTOS|')) {
       _parseContactList(combined);
+      return null;
+    }
+    if (combined.startsWith('EMAILS|')) {
+      _parseEmailList(combined);
+      return null;
+    }
+    if (combined.startsWith('MAIL|')) {
+      _parseMailResult(combined);
       return null;
     }
     final fi = _famInRe.firstMatch(combined);
