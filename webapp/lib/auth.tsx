@@ -11,7 +11,12 @@ import type { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
 import Login from "@/components/Login";
 
-export type Contact = { id: number; name: string; email: string };
+export type Contact = {
+  id: number;
+  name: string;
+  email: string;
+  is_admin: boolean;
+};
 
 type AuthState = {
   user: User | null;
@@ -43,7 +48,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // RLS deja ver solo la propia fila de contacto.
       const { data } = await supabase
         .from("contacts")
-        .select("id,name,email")
+        .select("id,name,email,is_admin")
         .maybeSingle();
       if (active) setContact((data as Contact) ?? null);
     }

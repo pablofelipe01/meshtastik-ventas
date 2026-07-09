@@ -48,6 +48,21 @@ export default function Home() {
             {contact ? `Hola, ${contact.name}` : "Cargando…"}
           </p>
         </div>
+        {contact?.is_admin && (
+          <Link
+            href="/admin"
+            className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+          >
+            Admin
+          </Link>
+        )}
+        <Link
+          href="/cuenta"
+          className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+          aria-label="Mi cuenta"
+        >
+          ⚙️
+        </Link>
         <button
           onClick={signOut}
           className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
