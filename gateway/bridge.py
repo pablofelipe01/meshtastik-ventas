@@ -73,9 +73,24 @@ def _upsert_nodes(rows: list) -> None:
     """Upsert por clave primaria (node_num)."""
     if not rows:
         return
-    r = _rest("POST", "nodes", json=rows,
-              headers=_headers({"Prefer": "resolution=merge-duplicates"}))
-    r.raise_for_status()
+    # PostgREST rechaza dos filas con la misma PK en un mismo upsert; deduplica
+    # por node_num quedándose con la última (más reciente).
+    dedup = {}
+    for row in rows:
+        dedup[row["node_num"]] = row
+    # PostgREST también exige que todas las filas de un batch tengan las MISMAS
+    # claves (PGRST102). Como unos nodos traen GPS y otros no, agrupamos por
+    # conjunto de claves y enviamos cada grupo por separado (nunca null a la
+    # posición, para no borrar una posición conocida).
+    groups = {}
+    for row in dedup.values():
+        groups.setdefault(tuple(sorted(row.keys())), []).append(row)
+    for payload in groups.values():
+        r = _rest("POST", "nodes", json=payload,
+                  headers=_headers({"Prefer": "resolution=merge-duplicates"}))
+        if r.status_code >= 400:
+            log.error("nodes upsert %s: %s", r.status_code, r.text[:400])
+        r.raise_for_status()
 
 
 def _ensure_node(node_num: int, node_id: str, name: str) -> None:

@@ -19,6 +19,31 @@ enum DeliveryStatus {
   none,
 }
 
+/// Canal lógico de la conversación con el gateway: IA (Claude) o Familia.
+enum GatewayChannel { claude, family }
+
+/// Entrada ya procesada (reensamblada y clasificada) de la conversación con el
+/// gateway, lista para pintar en la pestaña Claude o Familia.
+class GatewayEntry {
+  final String text;
+  final bool isMine;
+  final DateTime timestamp;
+  final DeliveryStatus deliveryStatus;
+  final bool pending; // respuesta parcial (aún llegan fragmentos)
+  final String? senderName; // para mensajes entrantes de familia ("Nombre: ...")
+  final GatewayChannel channel;
+
+  GatewayEntry({
+    required this.text,
+    required this.isMine,
+    required this.timestamp,
+    this.deliveryStatus = DeliveryStatus.none,
+    this.pending = false,
+    this.senderName,
+    required this.channel,
+  });
+}
+
 /// Dispositivo BLE descubierto durante el escaneo.
 class ScannedDevice {
   final String name;

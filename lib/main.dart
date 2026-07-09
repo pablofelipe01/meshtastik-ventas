@@ -7,7 +7,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'models/chat_models.dart';
 import 'services/meshtastic_service.dart';
 import 'services/foreground_connection.dart';
-import 'screens/claude_screen.dart';
+import 'screens/gateway_chat_screen.dart';
 import 'screens/chat_screen.dart';
 import 'screens/settings_screen.dart';
 
@@ -377,16 +377,21 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
   Widget _buildCurrentPage() {
     switch (_currentIndex) {
       case 0:
-        return ClaudeScreen(meshtasticService: _service);
+        return GatewayChatScreen(
+            meshtasticService: _service, channel: GatewayChannel.claude);
       case 1:
-        return ChatScreen(meshtasticService: _service);
+        return GatewayChatScreen(
+            meshtasticService: _service, channel: GatewayChannel.family);
       case 2:
+        return ChatScreen(meshtasticService: _service);
+      case 3:
         return SettingsScreen(
           meshtasticService: _service,
           onDeviceChange: _navigateToDeviceSelection,
         );
       default:
-        return ClaudeScreen(meshtasticService: _service);
+        return GatewayChatScreen(
+            meshtasticService: _service, channel: GatewayChannel.claude);
     }
   }
 
@@ -398,7 +403,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          if (index == 1) _service.clearUnreadChat();
+          if (index == 2) _service.clearUnreadChat();
           setState(() => _currentIndex = index);
         },
         destinations: [
@@ -406,6 +411,11 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             icon: Icon(Icons.smart_toy_outlined),
             selectedIcon: Icon(Icons.smart_toy),
             label: 'Claude',
+          ),
+          const NavigationDestination(
+            icon: Icon(Icons.people_outline),
+            selectedIcon: Icon(Icons.people),
+            label: 'Familia',
           ),
           NavigationDestination(
             icon: Badge(

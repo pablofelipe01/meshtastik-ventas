@@ -477,8 +477,8 @@ class MeshtasticService extends ChangeNotifier {
     }).toList();
   }
 
-  /// Todos los mensajes DM entre yo y el nodo del gateway (para la pantalla
-  /// de Claude). Incluye mis "@claude ..." y las respuestas del gateway.
+  /// Todos los mensajes DM entre yo y el nodo del gateway. Incluye mis
+  /// "@claude ..." y mensajes a familia, y las respuestas del gateway.
   List<ChatMessage> getGatewayConversation() {
     final gw = currentGatewayNodeId;
     return _messageHistory.where((m) {
@@ -486,6 +486,96 @@ class MeshtasticService extends ChangeNotifier {
       if (m.isMine) return m.toNodeId == gw;
       return m.fromNodeId == gw;
     }).toList();
+  }
+
+  static final RegExp _fragRe = RegExp(r'^\[(\d+)/(\d+)\]\s*');
+  static final RegExp _claudeRe = RegExp(r'^Claude:\s*');
+  static final RegExp _atClaudeRe =
+      RegExp(r'^\s*@claude\s*', caseSensitive: false);
+  static final RegExp _senderRe = RegExp(r'^([^:]{1,40}):\s+(.*)$', dotAll: true);
+
+  /// Procesa la conversación con el gateway: reensambla los fragmentos `[i/n]`
+  /// y clasifica cada mensaje en canal Claude o Familia. Ambas pestañas filtran
+  /// esta lista por `channel`.
+  List<GatewayEntry> parseGatewayEntries() {
+    final raw = getGatewayConversation();
+    final entries = <GatewayEntry>[];
+    final buf = <String>[];
+    int? expectedTotal;
+    DateTime? bufTime;
+
+    void flush() {
+      if (buf.isEmpty) return;
+      final combined = buf.join(' ').trim();
+      final pending = expectedTotal != null && buf.length < expectedTotal!;
+      entries.add(_classifyIncoming(combined, bufTime ?? DateTime.now(), pending));
+      buf.clear();
+      expectedTotal = null;
+      bufTime = null;
+    }
+
+    for (final m in raw) {
+      if (m.isMine) {
+        flush();
+        final isClaude = m.messageText.trimLeft().toLowerCase().startsWith('@claude');
+        final t = isClaude
+            ? m.messageText.replaceFirst(_atClaudeRe, '')
+            : m.messageText;
+        entries.add(GatewayEntry(
+          text: t.isEmpty ? '(vacío)' : t,
+          isMine: true,
+          timestamp: m.timestamp,
+          deliveryStatus: m.deliveryStatus,
+          channel: isClaude ? GatewayChannel.claude : GatewayChannel.family,
+        ));
+        continue;
+      }
+      final match = _fragRe.firstMatch(m.messageText);
+      if (match == null) {
+        flush();
+        entries.add(_classifyIncoming(m.messageText, m.timestamp, false));
+      } else {
+        final idx = int.parse(match.group(1)!);
+        final total = int.parse(match.group(2)!);
+        if (idx == 1) flush();
+        expectedTotal = total;
+        bufTime ??= m.timestamp;
+        buf.add(m.messageText.substring(match.end));
+        if (buf.length >= total) flush();
+      }
+    }
+    flush();
+    return entries;
+  }
+
+  GatewayEntry _classifyIncoming(String combined, DateTime ts, bool pending) {
+    if (_claudeRe.hasMatch(combined)) {
+      return GatewayEntry(
+        text: combined.replaceFirst(_claudeRe, ''),
+        isMine: false,
+        timestamp: ts,
+        pending: pending,
+        channel: GatewayChannel.claude,
+      );
+    }
+    final fm = _senderRe.firstMatch(combined);
+    if (fm != null) {
+      return GatewayEntry(
+        text: fm.group(2)!,
+        isMine: false,
+        timestamp: ts,
+        pending: pending,
+        senderName: fm.group(1)!.trim(),
+        channel: GatewayChannel.family,
+      );
+    }
+    return GatewayEntry(
+      text: combined,
+      isMine: false,
+      timestamp: ts,
+      pending: pending,
+      channel: GatewayChannel.family,
+    );
   }
 
   // ---------- No-leídos ----------

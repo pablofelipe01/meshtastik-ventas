@@ -5,44 +5,45 @@ import '../models/chat_models.dart';
 import '../services/meshtastic_service.dart';
 import '../widgets/delivery_indicator.dart';
 
-/// Conversación dedicada con Claude vía el gateway.
+/// Pantalla de conversación con el gateway, reutilizable para dos canales:
+///  - [GatewayChannel.claude]: la app antepone `@claude` al enviar; muestra las
+///    respuestas de la IA (reensamblando fragmentos).
+///  - [GatewayChannel.family]: envía texto plano (el gateway lo reenvía a la
+///    familia por internet); muestra los mensajes que la familia manda de vuelta.
 ///
-/// El usuario escribe normal; la app envía `@claude <texto>` como DM al nodo
-/// del gateway. Las respuestas del gateway (que llegan por DM, posiblemente
-/// fragmentadas como `[i/n] Claude: ...`) se reensamblan y se muestran limpias.
-class ClaudeScreen extends StatefulWidget {
+/// Ambos canales comparten el mismo nodo gateway por DM; se separan por prefijo
+/// vía [MeshtasticService.parseGatewayEntries].
+class GatewayChatScreen extends StatefulWidget {
   final MeshtasticService meshtasticService;
+  final GatewayChannel channel;
 
-  const ClaudeScreen({super.key, required this.meshtasticService});
+  const GatewayChatScreen({
+    super.key,
+    required this.meshtasticService,
+    required this.channel,
+  });
 
   @override
-  State<ClaudeScreen> createState() => _ClaudeScreenState();
+  State<GatewayChatScreen> createState() => _GatewayChatScreenState();
 }
 
-/// Entrada de la conversación lista para pintar (ya reensamblada / limpia).
-class _ClaudeEntry {
-  final String text;
-  final bool isMine;
-  final DateTime timestamp;
-  final DeliveryStatus deliveryStatus;
-  final bool pending; // respuesta parcial (aún llegan fragmentos)
-
-  _ClaudeEntry({
-    required this.text,
-    required this.isMine,
-    required this.timestamp,
-    this.deliveryStatus = DeliveryStatus.none,
-    this.pending = false,
-  });
-}
-
-class _ClaudeScreenState extends State<ClaudeScreen> {
+class _GatewayChatScreenState extends State<GatewayChatScreen> {
   final _controller = TextEditingController();
   final _scrollController = ScrollController();
   StreamSubscription<ChatMessage>? _sub;
   bool _isSending = false;
 
   MeshtasticService get _service => widget.meshtasticService;
+  bool get _isClaude => widget.channel == GatewayChannel.claude;
+
+  // Presentación según el canal.
+  String get _title => _isClaude ? 'Claude' : 'Familia';
+  IconData get _titleIcon => _isClaude ? Icons.smart_toy : Icons.people;
+  IconData get _senderIcon => _isClaude ? Icons.smart_toy : Icons.person;
+  Color get _accent => _isClaude ? Colors.blueGrey : Colors.green.shade700;
+  String get _sendPrefix => _isClaude ? '@claude ' : '';
+  String get _hint =>
+      _isClaude ? 'Pregúntale a Claude…' : 'Escribe a tu familia…';
 
   @override
   void initState() {
@@ -82,7 +83,7 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
     if (q.isEmpty || !_service.isConnected) return;
     setState(() => _isSending = true);
     final ok = await _service.sendChatMessage(
-      '@claude $q',
+      '$_sendPrefix$q',
       destinationId: _service.currentGatewayNodeId,
     );
     setState(() => _isSending = false);
@@ -91,81 +92,23 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
       _scrollToBottom();
     } else if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No se pudo enviar a Claude')),
+        SnackBar(content: Text('No se pudo enviar a $_title')),
       );
     }
   }
 
-  /// Convierte los mensajes DM crudos con el gateway en entradas limpias,
-  /// reensamblando los fragmentos `[i/n] ...` de las respuestas.
-  List<_ClaudeEntry> _buildEntries() {
-    final raw = _service.getGatewayConversation();
-    final entries = <_ClaudeEntry>[];
+  List<GatewayEntry> get _entries => _service
+      .parseGatewayEntries()
+      .where((e) => e.channel == widget.channel)
+      .toList();
 
-    final fragRe = RegExp(r'^\[(\d+)/(\d+)\]\s*');
-    // buffer de fragmentos en curso
-    final buf = <String>[];
-    int? expectedTotal;
-    DateTime? bufTime;
-
-    void flushBuffer() {
-      if (buf.isEmpty) return;
-      var combined = buf.join(' ').trim();
-      combined = combined.replaceFirst(RegExp(r'^Claude:\s*'), '');
-      entries.add(_ClaudeEntry(
-        text: combined,
-        isMine: false,
-        timestamp: bufTime ?? DateTime.now(),
-        pending: expectedTotal != null && buf.length < expectedTotal!,
-      ));
-      buf.clear();
-      expectedTotal = null;
-      bufTime = null;
-    }
-
-    for (final m in raw) {
-      if (m.isMine) {
-        flushBuffer();
-        var t = m.messageText.replaceFirst(RegExp(r'^@claude\s*', caseSensitive: false), '');
-        entries.add(_ClaudeEntry(
-          text: t.isEmpty ? '(vacío)' : t,
-          isMine: true,
-          timestamp: m.timestamp,
-          deliveryStatus: m.deliveryStatus,
-        ));
-        continue;
-      }
-
-      // Mensaje entrante del gateway.
-      final match = fragRe.firstMatch(m.messageText);
-      if (match == null) {
-        // Respuesta de un solo paquete.
-        flushBuffer();
-        var t = m.messageText.replaceFirst(RegExp(r'^Claude:\s*'), '');
-        entries.add(_ClaudeEntry(
-          text: t,
-          isMine: false,
-          timestamp: m.timestamp,
-        ));
-      } else {
-        final idx = int.parse(match.group(1)!);
-        final total = int.parse(match.group(2)!);
-        if (idx == 1) flushBuffer(); // empieza una respuesta nueva
-        expectedTotal = total;
-        bufTime ??= m.timestamp;
-        buf.add(m.messageText.substring(match.end));
-        if (buf.length >= total) flushBuffer();
-      }
-    }
-    flushBuffer();
-    return entries;
-  }
-
-  Widget _buildBubble(_ClaudeEntry e) {
+  Widget _buildBubble(GatewayEntry e) {
     final align = e.isMine ? CrossAxisAlignment.end : CrossAxisAlignment.start;
     final color = e.isMine
         ? Colors.blue.shade100
         : Theme.of(context).colorScheme.surfaceContainerHighest;
+    final senderLabel =
+        _isClaude ? 'Claude' : (e.senderName ?? 'Familia');
     return Container(
       margin: EdgeInsets.only(
         left: e.isMine ? 48 : 8,
@@ -177,18 +120,18 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
         crossAxisAlignment: align,
         children: [
           if (!e.isMine)
-            const Padding(
-              padding: EdgeInsets.only(left: 10, bottom: 2),
+            Padding(
+              padding: const EdgeInsets.only(left: 10, bottom: 2),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.smart_toy, size: 14, color: Colors.blueGrey),
-                  SizedBox(width: 4),
-                  Text('Claude',
+                  Icon(_senderIcon, size: 14, color: _accent),
+                  const SizedBox(width: 4),
+                  Text(senderLabel,
                       style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w600,
-                          color: Colors.blueGrey)),
+                          color: _accent)),
                 ],
               ),
             ),
@@ -235,24 +178,28 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
   }
 
   Widget _buildEmpty() {
+    final title = _isClaude ? 'Pregúntale a Claude' : 'Chat con tu familia';
+    final body = _isClaude
+        ? 'Escribe cualquier pregunta. Va por la red mesh al gateway, que '
+            'consulta a Claude y responde aquí. No necesitas internet en el teléfono.'
+        : 'Escribe un mensaje. Viaja por la red mesh hasta el gateway y de ahí '
+            'por internet a tu familia. Sus respuestas aparecen aquí. Sin '
+            'internet ni celular en el teléfono.';
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.smart_toy_outlined, size: 64, color: Colors.blueGrey),
+            Icon(_isClaude ? Icons.smart_toy_outlined : Icons.people_outline,
+                size: 64, color: _accent),
             const SizedBox(height: 16),
-            Text('Pregúntale a Claude',
+            Text(title,
                 style: TextStyle(fontSize: 18, color: Colors.grey.shade700)),
             const SizedBox(height: 8),
-            Text(
-              'Escribe cualquier pregunta. Va por la red mesh al gateway, '
-              'que consulta a Claude y responde aquí. No necesitas internet '
-              'en el teléfono.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-            ),
+            Text(body,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
           ],
         ),
       ),
@@ -261,20 +208,21 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = _buildEntries();
+    final entries = _entries;
     final maxBytes = MeshtasticService.maxMessageBytes;
-    final bytes = MeshtasticService.getUtf8ByteLength('@claude ${_controller.text}');
+    final bytes = MeshtasticService.getUtf8ByteLength(
+        '$_sendPrefix${_controller.text}');
     final tooLong = bytes > maxBytes;
     final canSend = _service.isConnected && !_isSending && !tooLong;
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: const Row(
+        title: Row(
           children: [
-            Icon(Icons.smart_toy),
-            SizedBox(width: 8),
-            Text('Claude'),
+            Icon(_titleIcon),
+            const SizedBox(width: 8),
+            Text(_title),
           ],
         ),
         bottom: _service.isConnected
@@ -329,11 +277,13 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
                       minLines: 1,
                       maxLines: 4,
                       decoration: InputDecoration(
-                        hintText: 'Pregúntale a Claude…',
+                        hintText: _hint,
                         filled: true,
                         fillColor: tooLong
                             ? Colors.red.shade50
-                            : Theme.of(context).colorScheme.surfaceContainerHighest,
+                            : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(24),
                           borderSide: tooLong
@@ -343,8 +293,8 @@ class _ClaudeScreenState extends State<ClaudeScreen> {
                         contentPadding: const EdgeInsets.symmetric(
                             horizontal: 16, vertical: 10),
                         suffixText: tooLong ? '$bytes/$maxBytes' : null,
-                        suffixStyle: const TextStyle(
-                            color: Colors.red, fontSize: 11),
+                        suffixStyle:
+                            const TextStyle(color: Colors.red, fontSize: 11),
                       ),
                     ),
                   ),

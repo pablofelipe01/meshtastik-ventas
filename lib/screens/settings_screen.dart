@@ -178,7 +178,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           const SizedBox(height: 24),
           Center(
             child: Text(
-              'Mesh Chat · v2.0.0',
+              'Mesh Chat · v3.0.0',
               style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
             ),
           ),
