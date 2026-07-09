@@ -203,7 +203,7 @@ export default function NodeChat({
             value={sender}
             onChange={(e) => setSender(e.target.value)}
             placeholder="p. ej. Mamá"
-            className="flex-1 rounded-md border border-slate-200 px-2 py-1 text-sm outline-none focus:border-blue-400"
+            className="flex-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-sm text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-400"
           />
         </div>
         <div className="flex items-end gap-2">
@@ -218,8 +218,8 @@ export default function NodeChat({
             }}
             rows={1}
             placeholder="Escribe un mensaje…"
-            className={`max-h-32 flex-1 resize-none rounded-2xl border px-3 py-2 text-[15px] outline-none ${
-              tooLong ? "border-red-400 bg-red-50" : "border-slate-200"
+            className={`max-h-32 flex-1 resize-none rounded-2xl border px-3 py-2 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none ${
+              tooLong ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
             }`}
           />
           <button
