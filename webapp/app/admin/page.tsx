@@ -13,6 +13,7 @@ type AdminContact = {
 };
 type AdminNode = { node_num: number; long_name: string | null; short_name: string | null };
 type Assign = { node_num: number; contact_id: number };
+type EmailContact = { id: number; alias: string; email: string; name: string | null };
 
 async function authedFetch(path: string, init?: RequestInit) {
   const { data } = await supabase.auth.getSession();
@@ -32,7 +33,14 @@ export default function AdminPage() {
   const [contacts, setContacts] = useState<AdminContact[]>([]);
   const [nodes, setNodes] = useState<AdminNode[]>([]);
   const [assigns, setAssigns] = useState<Assign[]>([]);
+  const [emailContacts, setEmailContacts] = useState<EmailContact[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Formulario libreta de correos
+  const [eAlias, setEAlias] = useState("");
+  const [eEmail, setEEmail] = useState("");
+  const [eName, setEName] = useState("");
+  const [eError, setEError] = useState<string | null>(null);
 
   // Formulario
   const [name, setName] = useState("");
@@ -49,9 +57,33 @@ export default function AdminPage() {
       setContacts(d.contacts);
       setNodes(d.nodes);
       setAssigns(d.assigns);
+      setEmailContacts(d.emailContacts ?? []);
     }
     setLoading(false);
   }, []);
+
+  async function addEmailContact(e: React.FormEvent) {
+    e.preventDefault();
+    setEError(null);
+    const r = await authedFetch("/api/admin/email-contacts", {
+      method: "POST",
+      body: JSON.stringify({ alias: eAlias, email: eEmail, name: eName }),
+    });
+    const d = await r.json();
+    if (!r.ok) {
+      setEError(d.error ?? "Error al guardar.");
+      return;
+    }
+    setEAlias("");
+    setEEmail("");
+    setEName("");
+    load();
+  }
+
+  async function deleteEmailContact(id: number) {
+    await authedFetch(`/api/admin/email-contacts?id=${id}`, { method: "DELETE" });
+    load();
+  }
 
   useEffect(() => {
     if (contact?.is_admin) load();
@@ -216,6 +248,78 @@ export default function AdminPage() {
                 </div>
                 <p className="text-xs text-slate-500">{c.email}</p>
                 <p className="text-xs text-slate-500">Nodos: {nodesOf(c.id)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="px-4 pb-8">
+        <h2 className="mb-2 text-sm font-semibold text-slate-600">
+          Libreta de correos (para enviar por @claude desde la mesh)
+        </h2>
+        <form
+          onSubmit={addEmailContact}
+          className="mb-3 flex flex-col gap-2 rounded-xl bg-white p-4 shadow-sm sm:flex-row sm:items-end"
+        >
+          <div className="flex-1">
+            <label className="text-xs text-slate-500">Alias (una palabra)</label>
+            <input
+              required
+              value={eAlias}
+              onChange={(e) => setEAlias(e.target.value)}
+              placeholder="juan"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-[2]">
+            <label className="text-xs text-slate-500">Email</label>
+            <input
+              required
+              type="email"
+              value={eEmail}
+              onChange={(e) => setEEmail(e.target.value)}
+              placeholder="juan@ejemplo.com"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            />
+          </div>
+          <div className="flex-1">
+            <label className="text-xs text-slate-500">Nombre (opcional)</label>
+            <input
+              value={eName}
+              onChange={(e) => setEName(e.target.value)}
+              placeholder="Juan Pérez"
+              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            />
+          </div>
+          <button
+            type="submit"
+            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white"
+          >
+            Agregar
+          </button>
+        </form>
+        {eError && <p className="mb-2 text-sm text-red-600">{eError}</p>}
+        {emailContacts.length > 0 && (
+          <ul className="space-y-2">
+            {emailContacts.map((ec) => (
+              <li
+                key={ec.id}
+                className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm"
+              >
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium">
+                    <span className="font-mono text-blue-700">{ec.alias}</span>
+                    {ec.name ? ` · ${ec.name}` : ""}
+                  </p>
+                  <p className="truncate text-xs text-slate-500">{ec.email}</p>
+                </div>
+                <button
+                  onClick={() => deleteEmailContact(ec.id)}
+                  className="text-xs text-red-600"
+                >
+                  Eliminar
+                </button>
               </li>
             ))}
           </ul>

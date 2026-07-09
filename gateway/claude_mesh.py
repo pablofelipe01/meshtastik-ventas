@@ -28,6 +28,8 @@ import os
 import threading
 import time
 
+import mailer  # envío de correos (herramienta enviar_correo); no-op si no está configurado
+
 # ---------- Configuración (todo por .env) ----------
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "").strip()
 CLAUDE_MODEL = os.getenv("CLAUDE_MODEL", "claude-sonnet-4-6").strip()
@@ -204,15 +206,54 @@ def _extract_text(content) -> str:
     return "".join(parts).strip()
 
 
+# Herramienta cliente: Claude la invoca y el gateway la ejecuta (envía el correo).
+_EMAIL_TOOL = {
+    "name": "enviar_correo",
+    "description": (
+        "Envía un correo electrónico (email) a un destinatario. Úsala cuando el "
+        "usuario pida mandar o enviar un correo/email a alguien. El destinatario "
+        "puede ser un alias de la libreta (una sola palabra, p. ej. 'juan' o "
+        "'mama') o una dirección de correo completa. Redacta un cuerpo apropiado "
+        "y completo a partir de lo que pidió el usuario."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "destinatario": {
+                "type": "string",
+                "description": "Alias de la libreta (una palabra) o email completo.",
+            },
+            "asunto": {"type": "string", "description": "Asunto breve del correo."},
+            "cuerpo": {"type": "string", "description": "Cuerpo del correo."},
+        },
+        "required": ["destinatario", "cuerpo"],
+    },
+}
+
+
+def _run_tool(block):
+    """Ejecuta una herramienta cliente que pidió Claude. Devuelve el texto
+    resultado para el tool_result."""
+    if block.name == "enviar_correo":
+        inp = block.input or {}
+        out = mailer.send_email(
+            inp.get("destinatario", ""), inp.get("asunto", ""), inp.get("cuerpo", ""))
+        log.info("✉️  enviar_correo(%s): %s", inp.get("destinatario"), out)
+        return out
+    return "Herramienta desconocida."
+
+
 def _ask_claude(query: str, history: list = None) -> str:
-    """Llama a la API de Anthropic (con búsqueda web si está activa) y devuelve
-    el texto final. `history` es el hilo previo del nodo (mensajes de texto).
-    Maneja `pause_turn` reenviando la conversación."""
+    """Llama a la API de Anthropic (búsqueda web + herramienta de correo si están
+    activas) y devuelve el texto final. `history` es el hilo previo del nodo.
+    Maneja `pause_turn` (server tools) y `tool_use` (correo) en un bucle."""
     client = _anthropic_client.with_options(timeout=CLAUDE_TIMEOUT_SECONDS)
     tools = []
-    tool = _web_search_tool()
-    if tool is not None:
-        tools.append(tool)
+    ws = _web_search_tool()
+    if ws is not None:
+        tools.append(ws)
+    if mailer.ENABLED:
+        tools.append(_EMAIL_TOOL)
 
     kwargs = {
         "model": CLAUDE_MODEL,
@@ -223,15 +264,28 @@ def _ask_claude(query: str, history: list = None) -> str:
         kwargs["tools"] = tools
 
     messages = list(history or []) + [{"role": "user", "content": query}]
-    # Con herramientas del lado del servidor, la API puede pausar (pause_turn)
-    # si el bucle interno llega al límite; se reanuda reenviando el historial.
-    for _ in range(4):
+    for _ in range(6):
         resp = client.messages.create(messages=messages, **kwargs)
         if resp.stop_reason == "pause_turn":
+            # Server tool (búsqueda web) llegó a su límite interno: se reanuda.
             messages.append({"role": "assistant", "content": resp.content})
             continue
+        if resp.stop_reason == "tool_use":
+            # Herramienta cliente (correo): la ejecutamos y devolvemos el result.
+            messages.append({"role": "assistant", "content": resp.content})
+            results = []
+            for block in resp.content:
+                if getattr(block, "type", None) == "tool_use":
+                    results.append({
+                        "type": "tool_result",
+                        "tool_use_id": block.id,
+                        "content": _run_tool(block),
+                    })
+            if results:
+                messages.append({"role": "user", "content": results})
+                continue
+            return _extract_text(resp.content)
         return _extract_text(resp.content)
-    # Si agotó las reanudaciones, devuelve lo último que haya.
     return _extract_text(resp.content)
 
 
