@@ -31,6 +31,7 @@ class _EmailScreenState extends State<EmailScreen> {
   bool _sending = false;
   DateTime? _pendingSince;
   DateTime? _shownResultAt;
+  Timer? _sendTimeout;
 
   @override
   void initState() {
@@ -44,6 +45,7 @@ class _EmailScreenState extends State<EmailScreen> {
   void dispose() {
     _service.removeListener(_onChange);
     _sub?.cancel();
+    _sendTimeout?.cancel();
     _customCtrl.dispose();
     _subjectCtrl.dispose();
     _bodyCtrl.dispose();
@@ -52,6 +54,9 @@ class _EmailScreenState extends State<EmailScreen> {
 
   void _onChange() {
     if (!mounted) return;
+    // Procesa los mensajes nuevos del gateway ANTES de leer el resultado
+    // (parseGatewayEntries puebla lastEmailAt/lastEmailResult al ver MAIL|).
+    _service.parseGatewayEntries();
     // ¿Llegó una respuesta MAIL| nueva después de que enviamos?
     final at = _service.lastEmailAt;
     if (at != null &&
@@ -59,6 +64,7 @@ class _EmailScreenState extends State<EmailScreen> {
         (_pendingSince == null || at.isAfter(_pendingSince!))) {
       _shownResultAt = at;
       _sending = false;
+      _sendTimeout?.cancel();
       final ok = _service.lastEmailOk;
       final msg = _service.lastEmailResult ?? (ok ? 'Correo enviado.' : 'Error.');
       if (ok) {
@@ -105,8 +111,21 @@ class _EmailScreenState extends State<EmailScreen> {
         content: Text('No se pudo enviar a la mesh. ¿Conectado?'),
         backgroundColor: Colors.red,
       ));
+      return;
     }
     // Si ok, esperamos la respuesta MAIL| del gateway (la maneja _onChange).
+    // Red de seguridad: si no llega en 60 s, dejamos de esperar.
+    _sendTimeout?.cancel();
+    _sendTimeout = Timer(const Duration(seconds: 60), () {
+      if (mounted && _sending) {
+        setState(() => _sending = false);
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Sin confirmación del gateway. El correo pudo enviarse igual.'),
+          backgroundColor: Colors.orange,
+        ));
+      }
+    });
   }
 
   @override

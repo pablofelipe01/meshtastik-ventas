@@ -531,13 +531,14 @@ class MeshtasticService extends ChangeNotifier {
     }
   }
 
-  void _parseMailResult(String s) {
+  void _parseMailResult(String s, DateTime ts) {
     // "MAIL|ok|texto"  o  "MAIL|err|texto"
     final parts = s.split('|');
     if (parts.length < 3) return;
     _lastEmailOk = parts[1].trim().toLowerCase() == 'ok';
     _lastEmailResult = parts.sublist(2).join('|').trim();
-    _lastEmailAt = DateTime.now();
+    // Usa la marca de tiempo del mensaje (estable entre reparseos → idempotente).
+    _lastEmailAt = ts;
   }
 
   // ---------- Contactos (mensajería dirigida con la familia) ----------
@@ -692,7 +693,7 @@ class MeshtasticService extends ChangeNotifier {
       return null;
     }
     if (combined.startsWith('MAIL|')) {
-      _parseMailResult(combined);
+      _parseMailResult(combined, ts);
       return null;
     }
     final fi = _famInRe.firstMatch(combined);
