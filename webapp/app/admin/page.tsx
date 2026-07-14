@@ -14,6 +14,16 @@ type AdminContact = {
 type AdminNode = { node_num: number; long_name: string | null; short_name: string | null };
 type Assign = { node_num: number; contact_id: number };
 type EmailContact = { id: number; alias: string; email: string; name: string | null };
+type Lead = {
+  id: number;
+  created_at: string;
+  name: string;
+  company: string | null;
+  email: string | null;
+  message: string;
+  source: string | null;
+  handled: boolean;
+};
 
 async function authedFetch(path: string, init?: RequestInit) {
   const { data } = await supabase.auth.getSession();
@@ -34,6 +44,7 @@ export default function AdminPage() {
   const [nodes, setNodes] = useState<AdminNode[]>([]);
   const [assigns, setAssigns] = useState<Assign[]>([]);
   const [emailContacts, setEmailContacts] = useState<EmailContact[]>([]);
+  const [leads, setLeads] = useState<Lead[]>([]);
   const [loading, setLoading] = useState(true);
 
   // Formulario libreta de correos
@@ -58,9 +69,26 @@ export default function AdminPage() {
       setNodes(d.nodes);
       setAssigns(d.assigns);
       setEmailContacts(d.emailContacts ?? []);
+      setLeads(d.leads ?? []);
     }
     setLoading(false);
   }, []);
+
+  async function toggleLeadHandled(id: number, handled: boolean) {
+    setLeads((prev) =>
+      prev.map((l) => (l.id === id ? { ...l, handled } : l)),
+    );
+    await authedFetch(`/api/admin/leads?id=${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ handled }),
+    });
+  }
+
+  async function deleteLead(id: number) {
+    if (!confirm("¿Eliminar esta solicitud de contacto?")) return;
+    await authedFetch(`/api/admin/leads?id=${id}`, { method: "DELETE" });
+    setLeads((prev) => prev.filter((l) => l.id !== id));
+  }
 
   async function addEmailContact(e: React.FormEvent) {
     e.preventDefault();
@@ -153,6 +181,81 @@ export default function AdminPage() {
         </Link>
         <h1 className="flex-1 text-base font-semibold">Administración</h1>
       </header>
+
+      <section className="p-4">
+        <h2 className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
+          Solicitudes de contacto ({leads.length})
+          {leads.some((l) => !l.handled) && (
+            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+              {leads.filter((l) => !l.handled).length} sin atender
+            </span>
+          )}
+        </h2>
+        {loading ? (
+          <p className="text-sm text-slate-400">Cargando…</p>
+        ) : leads.length === 0 ? (
+          <p className="text-sm text-slate-400">Aún no hay solicitudes.</p>
+        ) : (
+          <ul className="space-y-2">
+            {leads.map((l) => (
+              <li
+                key={l.id}
+                className={`rounded-xl border p-3 shadow-sm ${
+                  l.handled
+                    ? "border-slate-200 bg-white"
+                    : "border-orange-200 bg-orange-50"
+                }`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="font-medium">
+                      {l.name}
+                      {l.company && (
+                        <span className="text-slate-500"> · {l.company}</span>
+                      )}
+                    </p>
+                    {l.email && (
+                      <a
+                        href={`mailto:${l.email}`}
+                        className="text-xs text-blue-600 underline"
+                      >
+                        {l.email}
+                      </a>
+                    )}
+                  </div>
+                  <span className="whitespace-nowrap text-xs text-slate-400">
+                    {new Date(l.created_at).toLocaleString("es", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                </div>
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                  {l.message}
+                </p>
+                <div className="mt-3 flex items-center gap-4 text-xs">
+                  <label className="flex items-center gap-1.5 text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={l.handled}
+                      onChange={(e) =>
+                        toggleLeadHandled(l.id, e.target.checked)
+                      }
+                    />
+                    Atendido
+                  </label>
+                  <button
+                    onClick={() => deleteLead(l.id)}
+                    className="text-red-600"
+                  >
+                    Eliminar
+                  </button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
 
       <section className="p-4">
         <h2 className="mb-2 text-sm font-semibold text-slate-600">

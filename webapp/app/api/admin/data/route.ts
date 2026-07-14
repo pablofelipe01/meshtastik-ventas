@@ -9,7 +9,7 @@ export async function GET(req: Request) {
   if (!admin) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
-  const [contacts, nodes, assigns, emails] = await Promise.all([
+  const [contacts, nodes, assigns, emails, leads] = await Promise.all([
     supabaseAdmin
       .from("contacts")
       .select("id,name,email,is_admin")
@@ -24,6 +24,10 @@ export async function GET(req: Request) {
       .from("email_contacts")
       .select("id,alias,email,name")
       .order("alias"),
+    supabaseAdmin
+      .from("leads")
+      .select("id,created_at,name,company,email,message,source,handled")
+      .order("created_at", { ascending: false }),
   ]);
 
   return NextResponse.json({
@@ -31,5 +35,6 @@ export async function GET(req: Request) {
     nodes: nodes.data ?? [],
     assigns: assigns.data ?? [],
     emailContacts: emails.data ?? [],
+    leads: leads.data ?? [],
   });
 }
