@@ -96,22 +96,15 @@ export default function Landing() {
           </div>
 
           <div className="flex justify-center">
-            <div
-              className="relative rounded-3xl p-8"
-              style={{
-                background: NAVY_DEEP,
-                boxShadow: `0 0 120px rgba(52,193,204,0.15)`,
-              }}
-            >
-              <Image
-                src="/trama-logo.png"
-                alt="Malla Trama"
-                width={340}
-                height={340}
-                className="rounded-2xl"
-                priority
-              />
-            </div>
+            <Image
+              src="/trama-hero.png"
+              alt="Del internet a la malla: una nube conectada a un gateway que reparte la señal a muchos nodos"
+              width={460}
+              height={460}
+              className="w-full max-w-md rounded-3xl"
+              style={{ boxShadow: "0 0 140px rgba(52,193,204,0.18)" }}
+              priority
+            />
           </div>
         </div>
       </section>
