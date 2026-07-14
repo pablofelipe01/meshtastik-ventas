@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import Login from "@/components/Login";
+import ContactForm from "@/components/ContactForm";
 
 /* Paleta tomada del logo: azul noche, verde lima, teal y naranja. */
 const NAVY = "#0b1f33";
@@ -362,6 +363,9 @@ export default function Landing() {
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-slate-300">{t.ctaSubtitle}</p>
       </section>
+
+      {/* ---------- Contacto ---------- */}
+      <ContactForm lang={lang} />
 
       {/* ---------- Footer (único acceso: Chat) ---------- */}
       <footer className="border-t border-white/10">
