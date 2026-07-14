@@ -285,6 +285,20 @@ export default function Landing() {
             {t.howSubtitle}
           </p>
 
+          <div
+            className="mx-auto mt-10 aspect-video w-full max-w-3xl overflow-hidden rounded-2xl border border-white/10"
+            style={{ boxShadow: "0 0 100px rgba(52,193,204,0.15)" }}
+          >
+            <iframe
+              className="h-full w-full"
+              src="https://www.youtube-nocookie.com/embed/IYHBDGrwECs"
+              title="Trama — Cómo funciona"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+              referrerPolicy="strict-origin-when-cross-origin"
+              allowFullScreen
+            />
+          </div>
+
           <div className="mt-12 grid gap-6 md:grid-cols-4">
             {t.steps.map((s, i) => (
               <Step
