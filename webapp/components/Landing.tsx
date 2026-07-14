@@ -225,16 +225,7 @@ export default function Landing() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <LangToggle lang={lang} setLang={setLang} />
-            <button
-              onClick={enter}
-              className="rounded-full px-5 py-2 text-sm font-semibold text-slate-900 transition hover:brightness-110"
-              style={{ backgroundColor: LIME }}
-            >
-              {t.enter}
-            </button>
-          </div>
+          <LangToggle lang={lang} setLang={setLang} />
         </div>
       </header>
 
@@ -255,17 +246,10 @@ export default function Landing() {
             <p className="mt-5 max-w-xl text-lg text-slate-300">
               {t.heroSubtitle}
             </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <button
-                onClick={enter}
-                className="rounded-full px-6 py-3 text-base font-semibold text-slate-900 transition hover:brightness-110"
-                style={{ backgroundColor: LIME }}
-              >
-                {t.heroCta}
-              </button>
+            <div className="mt-8">
               <a
                 href="#como-funciona"
-                className="rounded-full border border-white/20 px-6 py-3 text-base font-semibold text-slate-100 transition hover:bg-white/5"
+                className="inline-block rounded-full border border-white/20 px-6 py-3 text-base font-semibold text-slate-100 transition hover:bg-white/5"
               >
                 {t.howCta}
               </a>
@@ -363,32 +347,34 @@ export default function Landing() {
           <span style={{ color: LIME }}>{t.ctaTitle2}</span>
         </h2>
         <p className="mx-auto mt-4 max-w-xl text-slate-300">{t.ctaSubtitle}</p>
-        <button
-          onClick={enter}
-          className="mt-8 rounded-full px-8 py-3 text-base font-semibold text-slate-900 transition hover:brightness-110"
-          style={{ backgroundColor: LIME }}
-        >
-          {t.enter}
-        </button>
       </section>
 
-      {/* ---------- Footer ---------- */}
+      {/* ---------- Footer (único acceso: Chat) ---------- */}
       <footer className="border-t border-white/10">
-        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 px-6 py-8 sm:flex-row">
-          <div className="flex items-center gap-3">
-            <Image
-              src="/trama-logo.png"
-              alt="Trama"
-              width={32}
-              height={32}
-              className="rounded-lg"
-            />
-            <div className="text-sm">
-              <span className="font-semibold">Trama</span>
-              <span className="text-slate-400"> · {t.tagline}</span>
+        <div className="mx-auto flex max-w-6xl flex-col items-center gap-6 px-6 py-10">
+          <button
+            onClick={enter}
+            className="rounded-full px-10 py-3 text-base font-semibold text-slate-900 transition hover:brightness-110"
+            style={{ backgroundColor: LIME }}
+          >
+            Chat
+          </button>
+          <div className="flex w-full flex-col items-center justify-between gap-4 sm:flex-row">
+            <div className="flex items-center gap-3">
+              <Image
+                src="/trama-logo.png"
+                alt="Trama"
+                width={32}
+                height={32}
+                className="rounded-lg"
+              />
+              <div className="text-sm">
+                <span className="font-semibold">Trama</span>
+                <span className="text-slate-400"> · {t.tagline}</span>
+              </div>
             </div>
+            <p className="text-xs text-slate-500">{t.footerNote}</p>
           </div>
-          <p className="text-xs text-slate-500">{t.footerNote}</p>
         </div>
       </footer>
     </div>
