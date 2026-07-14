@@ -54,11 +54,11 @@ export default function ResetPage() {
       </div>
 
       {done ? (
-        <p className="text-center text-green-700">
+        <p className="text-center text-green-400">
           ✅ Clave actualizada. Entrando…
         </p>
       ) : !ready ? (
-        <p className="text-center text-sm text-slate-500">
+        <p className="text-center text-sm text-slate-400">
           Validando el enlace… Si llegaste aquí sin el enlace del correo, vuelve a
           pedir la recuperación.
         </p>
@@ -70,7 +70,7 @@ export default function ResetPage() {
             value={pw1}
             onChange={(e) => setPw1(e.target.value)}
             placeholder="Nueva clave"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
           <input
             type="password"
@@ -78,13 +78,13 @@ export default function ResetPage() {
             value={pw2}
             onChange={(e) => setPw2(e.target.value)}
             placeholder="Repite la nueva clave"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-slate-300"
+            className="btn-lime rounded-lg px-4 py-2"
           >
             {saving ? "Guardando…" : "Guardar clave"}
           </button>

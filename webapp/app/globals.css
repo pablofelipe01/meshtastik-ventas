@@ -1,15 +1,82 @@
 @import "tailwindcss";
 
-/* La app está diseñada en tema claro. Forzamos color-scheme: light para que
-   los campos de texto y controles no hereden el modo oscuro del sistema
-   (evita texto claro sobre fondo blanco). */
+/* ===== Tema Trama (oscuro) — unificado con la landing ===== */
 :root {
-  color-scheme: light;
-  --background: #f1f5f9; /* slate-100 */
-  --foreground: #0f172a; /* slate-900 */
+  color-scheme: dark;
+  --navy: #0b1f33;
+  --navy-deep: #081726;
+  --lime: #93d02c;
+  --teal: #34c1cc;
+  --orange: #ee8034;
+  --background: #0b1f33;
+  --foreground: #e2e8f0; /* slate-200 */
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(1100px 550px at 85% -10%, rgba(52, 193, 204, 0.1), transparent 60%),
+    radial-gradient(850px 480px at 0% 4%, rgba(147, 208, 44, 0.08), transparent 55%),
+    var(--navy);
+  background-attachment: fixed;
   color: var(--foreground);
+  min-height: 100dvh;
+}
+
+/* ---- Componentes reutilizables ---- */
+
+/* Encabezado de página */
+.app-header {
+  background: var(--navy-deep);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Tarjeta / superficie */
+.card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Campo de formulario (input / textarea) */
+.field {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+.field::placeholder {
+  color: #64748b; /* slate-500 */
+}
+.field:focus {
+  border-color: rgba(255, 255, 255, 0.3);
+  outline: none;
+}
+
+/* Botón primario (lima) */
+.btn-lime {
+  background: var(--lime);
+  color: #0f172a;
+  font-weight: 600;
+  transition: filter 0.15s ease;
+}
+.btn-lime:hover {
+  filter: brightness(1.08);
+}
+.btn-lime:disabled {
+  opacity: 0.45;
+  filter: none;
+}
+
+/* Botón/chip secundario translúcido */
+.btn-ghost {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  transition: background 0.15s ease;
+}
+.btn-ghost:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+/* Enlace de acento */
+.link-teal {
+  color: var(--teal);
 }

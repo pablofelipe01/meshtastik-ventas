@@ -16,7 +16,7 @@ export default function NodesMap({ nodes }: { nodes: Node[] }) {
 
   if (!KEY) {
     return (
-      <div className="flex h-full items-center justify-center bg-slate-200 p-4 text-center text-sm text-slate-500">
+      <div className="flex h-full items-center justify-center bg-[#081726] p-4 text-center text-sm text-slate-400">
         Falta NEXT_PUBLIC_GOOGLE_MAPS_API_KEY para mostrar el mapa.
       </div>
     );

@@ -28,7 +28,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="es" className="h-full">
-      <body className="min-h-full bg-slate-100 text-slate-900 antialiased">
+      <body className="min-h-full text-slate-200 antialiased">
         <AuthProvider>{children}</AuthProvider>
         <SwRegister />
       </body>

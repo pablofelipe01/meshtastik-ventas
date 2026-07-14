@@ -122,8 +122,8 @@ export default function AdminPage() {
   if (!contact.is_admin) {
     return (
       <main className="mx-auto flex min-h-dvh max-w-md flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-slate-700">No tienes permisos de administrador.</p>
-        <Link href="/" className="text-blue-600 underline">
+        <p className="text-slate-300">No tienes permisos de administrador.</p>
+        <Link href="/" className="link-teal underline">
           Volver
         </Link>
       </main>
@@ -175,7 +175,7 @@ export default function AdminPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col">
-      <header className="flex items-center gap-3 bg-slate-800 px-4 py-3 text-white shadow">
+      <header className="app-header flex items-center gap-3 px-4 py-3 text-slate-100">
         <Link href="/" className="text-xl leading-none" aria-label="Volver">
           ‹
         </Link>
@@ -183,10 +183,10 @@ export default function AdminPage() {
       </header>
 
       <section className="p-4">
-        <h2 className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-600">
+        <h2 className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-400">
           Solicitudes de contacto ({leads.length})
           {leads.some((l) => !l.handled) && (
-            <span className="rounded-full bg-orange-100 px-2 py-0.5 text-xs font-medium text-orange-700">
+            <span className="rounded-full bg-orange-500/20 px-2 py-0.5 text-xs font-medium text-orange-300">
               {leads.filter((l) => !l.handled).length} sin atender
             </span>
           )}
@@ -200,24 +200,24 @@ export default function AdminPage() {
             {leads.map((l) => (
               <li
                 key={l.id}
-                className={`rounded-xl border p-3 shadow-sm ${
+                className={`rounded-xl border p-3 ${
                   l.handled
-                    ? "border-slate-200 bg-white"
-                    : "border-orange-200 bg-orange-50"
+                    ? "border-white/10 bg-white/[0.03]"
+                    : "border-orange-400/40 bg-orange-500/10"
                 }`}
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <p className="font-medium">
+                    <p className="font-medium text-slate-100">
                       {l.name}
                       {l.company && (
-                        <span className="text-slate-500"> · {l.company}</span>
+                        <span className="text-slate-400"> · {l.company}</span>
                       )}
                     </p>
                     {l.email && (
                       <a
                         href={`mailto:${l.email}`}
-                        className="text-xs text-blue-600 underline"
+                        className="link-teal text-xs underline"
                       >
                         {l.email}
                       </a>
@@ -230,11 +230,11 @@ export default function AdminPage() {
                     })}
                   </span>
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-700">
+                <p className="mt-2 whitespace-pre-wrap text-sm text-slate-200">
                   {l.message}
                 </p>
                 <div className="mt-3 flex items-center gap-4 text-xs">
-                  <label className="flex items-center gap-1.5 text-slate-600">
+                  <label className="flex items-center gap-1.5 text-slate-300">
                     <input
                       type="checkbox"
                       checked={l.handled}
@@ -246,7 +246,7 @@ export default function AdminPage() {
                   </label>
                   <button
                     onClick={() => deleteLead(l.id)}
-                    className="text-red-600"
+                    className="text-red-400"
                   >
                     Eliminar
                   </button>
@@ -258,19 +258,19 @@ export default function AdminPage() {
       </section>
 
       <section className="p-4">
-        <h2 className="mb-2 text-sm font-semibold text-slate-600">
+        <h2 className="mb-2 text-sm font-semibold text-slate-400">
           Agregar familiar
         </h2>
         <form
           onSubmit={addFamily}
-          className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm"
+          className="flex flex-col gap-3 card rounded-xl p-4"
         >
           <input
             required
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Nombre (p. ej. Mamá)"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
           <input
             required
@@ -278,10 +278,10 @@ export default function AdminPage() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="Email (será su usuario)"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
           <div>
-            <p className="mb-1 text-xs text-slate-500">Nodos que puede contactar:</p>
+            <p className="mb-1 text-xs text-slate-400">Nodos que puede contactar:</p>
             <div className="flex flex-wrap gap-2">
               {nodes.length === 0 && (
                 <span className="text-xs text-slate-400">
@@ -293,8 +293,8 @@ export default function AdminPage() {
                   key={n.node_num}
                   className={`cursor-pointer rounded-full border px-3 py-1 text-sm ${
                     selNodes.includes(n.node_num)
-                      ? "border-blue-500 bg-blue-50 text-blue-700"
-                      : "border-slate-300 text-slate-600"
+                      ? "border-[#93d02c] bg-[#93d02c]/15 text-[#93d02c]"
+                      : "border-white/15 text-slate-300"
                   }`}
                 >
                   <input
@@ -308,21 +308,21 @@ export default function AdminPage() {
               ))}
             </div>
           </div>
-          {error && <p className="text-sm text-red-600">{error}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-slate-300"
+            className="btn-lime rounded-lg px-4 py-2"
           >
             {saving ? "Guardando…" : "Crear familiar"}
           </button>
         </form>
 
         {result && (
-          <div className="mt-3 rounded-xl border border-green-200 bg-green-50 p-3 text-sm">
-            <p className="text-green-800">{result.msg}</p>
+          <div className="mt-3 rounded-xl border border-green-500/30 bg-green-500/10 p-3 text-sm">
+            <p className="text-green-300">{result.msg}</p>
             {result.pw && (
-              <p className="mt-1 text-green-900">
+              <p className="mt-1 text-green-200">
                 Clave temporal (dásela y que la cambie al entrar):{" "}
                 <b className="font-mono">{result.pw}</b>
               </p>
@@ -332,7 +332,7 @@ export default function AdminPage() {
       </section>
 
       <section className="flex-1 px-4 pb-6">
-        <h2 className="mb-2 text-sm font-semibold text-slate-600">
+        <h2 className="mb-2 text-sm font-semibold text-slate-400">
           Familiares ({contacts.length})
         </h2>
         {loading ? (
@@ -340,17 +340,17 @@ export default function AdminPage() {
         ) : (
           <ul className="space-y-2">
             {contacts.map((c) => (
-              <li key={c.id} className="rounded-xl bg-white p-3 shadow-sm">
+              <li key={c.id} className="card rounded-xl p-3">
                 <div className="flex items-center gap-2">
-                  <span className="font-medium">{c.name}</span>
+                  <span className="font-medium text-slate-100">{c.name}</span>
                   {c.is_admin && (
-                    <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] text-slate-600">
+                    <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-slate-300">
                       admin
                     </span>
                   )}
                 </div>
-                <p className="text-xs text-slate-500">{c.email}</p>
-                <p className="text-xs text-slate-500">Nodos: {nodesOf(c.id)}</p>
+                <p className="text-xs text-slate-400">{c.email}</p>
+                <p className="text-xs text-slate-400">Nodos: {nodesOf(c.id)}</p>
               </li>
             ))}
           </ul>
@@ -358,68 +358,67 @@ export default function AdminPage() {
       </section>
 
       <section className="px-4 pb-8">
-        <h2 className="mb-2 text-sm font-semibold text-slate-600">
+        <h2 className="mb-2 text-sm font-semibold text-slate-400">
           Libreta de correos (para enviar por @claude desde la mesh)
         </h2>
         <form
           onSubmit={addEmailContact}
-          className="mb-3 flex flex-col gap-2 rounded-xl bg-white p-4 shadow-sm sm:flex-row sm:items-end"
+          className="mb-3 flex flex-col gap-2 card rounded-xl p-4 sm:flex-row sm:items-end"
         >
           <div className="flex-1">
-            <label className="text-xs text-slate-500">Alias (una palabra)</label>
+            <label className="text-xs text-slate-400">Alias (una palabra)</label>
             <input
               required
               value={eAlias}
               onChange={(e) => setEAlias(e.target.value)}
               placeholder="juan"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+              className="field w-full rounded-lg px-3 py-2 outline-none"
             />
           </div>
           <div className="flex-[2]">
-            <label className="text-xs text-slate-500">Email</label>
+            <label className="text-xs text-slate-400">Email</label>
             <input
               required
               type="email"
               value={eEmail}
               onChange={(e) => setEEmail(e.target.value)}
               placeholder="juan@ejemplo.com"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+              className="field w-full rounded-lg px-3 py-2 outline-none"
             />
           </div>
           <div className="flex-1">
-            <label className="text-xs text-slate-500">Nombre (opcional)</label>
+            <label className="text-xs text-slate-400">Nombre (opcional)</label>
             <input
               value={eName}
               onChange={(e) => setEName(e.target.value)}
               placeholder="Juan Pérez"
-              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+              className="field w-full rounded-lg px-3 py-2 outline-none"
             />
           </div>
-          <button
-            type="submit"
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white"
-          >
+          <button type="submit" className="btn-lime rounded-lg px-4 py-2">
             Agregar
           </button>
         </form>
-        {eError && <p className="mb-2 text-sm text-red-600">{eError}</p>}
+        {eError && <p className="mb-2 text-sm text-red-400">{eError}</p>}
         {emailContacts.length > 0 && (
           <ul className="space-y-2">
             {emailContacts.map((ec) => (
               <li
                 key={ec.id}
-                className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm"
+                className="flex items-center gap-3 card rounded-xl p-3"
               >
                 <div className="min-w-0 flex-1">
-                  <p className="font-medium">
-                    <span className="font-mono text-blue-700">{ec.alias}</span>
+                  <p className="font-medium text-slate-100">
+                    <span className="font-mono" style={{ color: "#34c1cc" }}>
+                      {ec.alias}
+                    </span>
                     {ec.name ? ` · ${ec.name}` : ""}
                   </p>
-                  <p className="truncate text-xs text-slate-500">{ec.email}</p>
+                  <p className="truncate text-xs text-slate-400">{ec.email}</p>
                 </div>
                 <button
                   onClick={() => deleteEmailContact(ec.id)}
-                  className="text-xs text-red-600"
+                  className="text-xs text-red-400"
                 >
                   Eliminar
                 </button>

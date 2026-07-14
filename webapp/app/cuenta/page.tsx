@@ -39,7 +39,7 @@ export default function CuentaPage() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-md flex-col">
-      <header className="flex items-center gap-3 bg-blue-700 px-4 py-3 text-white shadow">
+      <header className="app-header flex items-center gap-3 px-4 py-3 text-slate-100">
         <Link href="/" className="text-xl leading-none" aria-label="Volver">
           ‹
         </Link>
@@ -47,19 +47,19 @@ export default function CuentaPage() {
       </header>
 
       <section className="p-4">
-        <div className="mb-4 rounded-xl bg-white p-4 shadow-sm">
-          <p className="text-sm text-slate-500">Nombre</p>
-          <p className="font-medium">{contact?.name ?? "—"}</p>
-          <p className="mt-2 text-sm text-slate-500">Email</p>
-          <p className="font-medium">{user?.email ?? "—"}</p>
+        <div className="card mb-4 rounded-xl p-4">
+          <p className="text-sm text-slate-400">Nombre</p>
+          <p className="font-medium text-slate-100">{contact?.name ?? "—"}</p>
+          <p className="mt-2 text-sm text-slate-400">Email</p>
+          <p className="font-medium text-slate-100">{user?.email ?? "—"}</p>
         </div>
 
-        <h2 className="mb-2 text-sm font-semibold text-slate-600">
+        <h2 className="mb-2 text-sm font-semibold text-slate-400">
           Cambiar mi clave
         </h2>
         <form
           onSubmit={changePassword}
-          className="flex flex-col gap-3 rounded-xl bg-white p-4 shadow-sm"
+          className="card flex flex-col gap-3 rounded-xl p-4"
         >
           <input
             type="password"
@@ -67,7 +67,7 @@ export default function CuentaPage() {
             value={pw1}
             onChange={(e) => setPw1(e.target.value)}
             placeholder="Nueva clave"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
           <input
             type="password"
@@ -75,14 +75,14 @@ export default function CuentaPage() {
             value={pw2}
             onChange={(e) => setPw2(e.target.value)}
             placeholder="Repite la nueva clave"
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {msg && <p className="text-sm text-green-700">{msg}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          {msg && <p className="text-sm text-green-400">{msg}</p>}
           <button
             type="submit"
             disabled={saving}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-slate-300"
+            className="btn-lime rounded-lg px-4 py-2"
           >
             {saving ? "Guardando…" : "Cambiar clave"}
           </button>
@@ -90,7 +90,7 @@ export default function CuentaPage() {
 
         <button
           onClick={signOut}
-          className="mt-6 w-full rounded-lg bg-slate-200 px-4 py-2 text-slate-700"
+          className="btn-ghost mt-6 w-full rounded-lg px-4 py-2"
         >
           Cerrar sesión
         </button>

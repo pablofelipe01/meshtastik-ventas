@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import { Node, nodeName } from "@/lib/types";
@@ -40,43 +41,50 @@ export default function Home() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col">
-      <header className="flex items-center gap-2 bg-blue-700 px-4 py-3 text-white shadow">
-        <span className="text-lg">📡</span>
+      <header className="app-header flex items-center gap-3 px-4 py-3 text-slate-100">
+        <Image
+          src="/trama-logo.png"
+          alt="Trama"
+          width={34}
+          height={34}
+          className="rounded-lg"
+          priority
+        />
         <div className="min-w-0 flex-1">
-          <h1 className="text-base font-semibold leading-tight">Mesh Familia</h1>
-          <p className="truncate text-xs text-blue-100">
+          <h1 className="text-base font-semibold leading-tight">Trama</h1>
+          <p className="truncate text-xs text-slate-400">
             {contact ? `Hola, ${contact.name}` : "Cargando…"}
           </p>
         </div>
         {contact?.is_admin && (
           <Link
             href="/admin"
-            className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+            className="btn-ghost rounded-lg px-3 py-1.5 text-xs"
           >
             Admin
           </Link>
         )}
         <Link
           href="/cuenta"
-          className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+          className="btn-ghost rounded-lg px-3 py-1.5 text-xs"
           aria-label="Mi cuenta"
         >
           ⚙️
         </Link>
         <button
           onClick={signOut}
-          className="rounded-lg bg-blue-600 px-3 py-1 text-xs text-blue-50 active:bg-blue-800"
+          className="btn-ghost rounded-lg px-3 py-1.5 text-xs"
         >
           Salir
         </button>
       </header>
 
-      <div className="h-[38dvh] w-full bg-slate-200">
+      <div className="h-[38dvh] w-full bg-[#081726]">
         <NodesMap nodes={nodes} />
       </div>
 
       <section className="flex-1 p-3">
-        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-500">
+        <h2 className="mb-2 px-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
           Nodos ({nodes.length})
         </h2>
 
@@ -92,19 +100,24 @@ export default function Home() {
               <li key={n.node_num}>
                 <Link
                   href={`/node/${n.node_num}`}
-                  className="flex items-center gap-3 rounded-xl bg-white p-3 shadow-sm active:bg-slate-50"
+                  className="card flex items-center gap-3 rounded-xl p-3 transition hover:bg-white/[0.06]"
                 >
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-100 text-blue-700">
+                  <div
+                    className="flex h-10 w-10 items-center justify-center rounded-full text-lg"
+                    style={{ backgroundColor: "#34c1cc22", color: "#34c1cc" }}
+                  >
                     {n.lat != null ? "📍" : "📻"}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{nodeName(n)}</p>
-                    <p className="truncate text-xs text-slate-500">
+                    <p className="truncate font-medium text-slate-100">
+                      {nodeName(n)}
+                    </p>
+                    <p className="truncate text-xs text-slate-400">
                       Visto {timeAgo(n.last_seen)}
                       {n.battery != null ? ` · 🔋 ${n.battery}%` : ""}
                     </p>
                   </div>
-                  <span className="text-slate-300">›</span>
+                  <span className="text-slate-500">›</span>
                 </Link>
               </li>
             ))}

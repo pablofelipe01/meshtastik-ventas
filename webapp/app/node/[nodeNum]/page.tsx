@@ -132,8 +132,8 @@ export default function NodeChat({
   const title = node ? nodeName(node) : `Nodo ${nodeNum}`;
 
   return (
-    <main className="mx-auto flex h-dvh max-w-2xl flex-col bg-slate-100">
-      <header className="flex items-center gap-3 bg-blue-700 px-3 py-3 text-white shadow">
+    <main className="mx-auto flex h-dvh max-w-2xl flex-col">
+      <header className="app-header flex items-center gap-3 px-3 py-3 text-slate-100">
         <Link href="/" className="text-xl leading-none" aria-label="Volver">
           ‹
         </Link>
@@ -141,7 +141,7 @@ export default function NodeChat({
           <h1 className="truncate text-base font-semibold leading-tight">
             {title}
           </h1>
-          <p className="truncate text-xs text-blue-100">
+          <p className="truncate text-xs text-slate-400">
             {node?.lat != null ? "📍 con ubicación" : "📻 nodo mesh"}
             {node?.battery != null ? ` · 🔋 ${node.battery}%` : ""}
           </p>
@@ -164,19 +164,23 @@ export default function NodeChat({
                 <div
                   className={`max-w-[80%] rounded-2xl px-3 py-2 text-[15px] shadow-sm ${
                     mine
-                      ? "rounded-br-sm bg-blue-600 text-white"
-                      : "rounded-bl-sm bg-white text-slate-900"
+                      ? "rounded-br-sm text-slate-900"
+                      : "card rounded-bl-sm text-slate-100"
                   }`}
+                  style={mine ? { backgroundColor: "#93d02c" } : undefined}
                 >
                   {!mine && (
-                    <p className="mb-0.5 text-xs font-semibold text-blue-700">
+                    <p
+                      className="mb-0.5 text-xs font-semibold"
+                      style={{ color: "#34c1cc" }}
+                    >
                       {m.sender_name || title}
                     </p>
                   )}
                   <p className="whitespace-pre-wrap break-words">{m.text}</p>
                   <p
                     className={`mt-1 text-right text-[10px] ${
-                      mine ? "text-blue-100" : "text-slate-400"
+                      mine ? "text-emerald-900/70" : "text-slate-400"
                     }`}
                   >
                     {hhmm(m.created_at)}
@@ -190,7 +194,7 @@ export default function NodeChat({
         <div ref={bottomRef} />
       </div>
 
-      <div className="border-t border-slate-200 bg-white p-2">
+      <div className="border-t border-white/10 bg-[#081726] p-2">
         <div className="flex items-end gap-2">
           <textarea
             value={text}
@@ -203,14 +207,14 @@ export default function NodeChat({
             }}
             rows={1}
             placeholder="Escribe un mensaje…"
-            className={`max-h-32 flex-1 resize-none rounded-2xl border px-3 py-2 text-[15px] text-slate-900 placeholder:text-slate-400 outline-none ${
-              tooLong ? "border-red-400 bg-red-50" : "border-slate-200 bg-white"
+            className={`field max-h-32 flex-1 resize-none rounded-2xl px-3 py-2 text-[15px] outline-none ${
+              tooLong ? "!border-red-500" : ""
             }`}
           />
           <button
             onClick={send}
             disabled={!text.trim() || tooLong || sending}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-white disabled:bg-slate-300"
+            className="btn-lime flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
             aria-label="Enviar"
           >
             {sending ? "…" : "➤"}
@@ -219,7 +223,7 @@ export default function NodeChat({
         {bytes > 0 && (
           <p
             className={`px-1 pt-1 text-right text-[11px] ${
-              tooLong ? "font-semibold text-red-500" : "text-slate-400"
+              tooLong ? "font-semibold text-red-400" : "text-slate-400"
             }`}
           >
             {bytes}/{MAX_BYTES} bytes

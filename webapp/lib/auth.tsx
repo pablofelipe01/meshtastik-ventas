@@ -90,13 +90,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   } else if (!contact) {
     content = (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
-        <p className="text-slate-700">
+        <p className="text-slate-300">
           Tu cuenta <b>{user.email}</b> no está vinculada a ningún contacto.
           Pide al administrador que te registre.
         </p>
         <button
           onClick={signOut}
-          className="rounded-lg bg-slate-200 px-4 py-2 text-slate-700"
+          className="btn-ghost rounded-lg px-4 py-2"
         >
           Cerrar sesión
         </button>

@@ -94,7 +94,7 @@ export default function Login({
         <div className="text-center">
           <div className="text-4xl">🔑</div>
           <h1 className="mt-2 text-xl font-semibold">{t.forgotTitle}</h1>
-          <p className="text-sm text-slate-500">{t.forgotSubtitle}</p>
+          <p className="text-sm text-slate-400">{t.forgotSubtitle}</p>
         </div>
         <form onSubmit={sendReset} className="flex flex-col gap-3">
           <input
@@ -103,14 +103,14 @@ export default function Login({
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder={t.email}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+            className="field rounded-lg px-3 py-2 outline-none"
           />
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {info && <p className="text-sm text-green-700">{info}</p>}
+          {error && <p className="text-sm text-red-400">{error}</p>}
+          {info && <p className="text-sm text-green-400">{info}</p>}
           <button
             type="submit"
             disabled={loading}
-            className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-slate-300"
+            className="btn-lime rounded-lg px-4 py-2"
           >
             {loading ? t.sending : t.send}
           </button>
@@ -121,7 +121,7 @@ export default function Login({
             setError(null);
             setInfo(null);
           }}
-          className="text-center text-sm text-blue-600"
+          className="text-center text-sm link-teal"
         >
           {t.backToLogin}
         </button>
@@ -132,7 +132,7 @@ export default function Login({
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
       {onBack && (
-        <button onClick={onBack} className="self-start text-sm text-blue-600">
+        <button onClick={onBack} className="self-start text-sm link-teal">
           {t.back}
         </button>
       )}
@@ -146,7 +146,7 @@ export default function Login({
           priority
         />
         <h1 className="mt-3 text-xl font-semibold">{t.title}</h1>
-        <p className="text-sm text-slate-500">{t.subtitle}</p>
+        <p className="text-sm text-slate-400">{t.subtitle}</p>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-3">
@@ -158,7 +158,7 @@ export default function Login({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           placeholder={t.email}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+          className="field rounded-lg px-3 py-2 outline-none"
         />
         <input
           type="password"
@@ -167,13 +167,13 @@ export default function Login({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           placeholder={t.password}
-          className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-slate-900 placeholder:text-slate-400 outline-none focus:border-blue-500"
+          className="field rounded-lg px-3 py-2 outline-none"
         />
-        {error && <p className="text-sm text-red-600">{error}</p>}
+        {error && <p className="text-sm text-red-400">{error}</p>}
         <button
           type="submit"
           disabled={loading}
-          className="rounded-lg bg-blue-600 px-4 py-2 font-medium text-white disabled:bg-slate-300"
+          className="btn-lime rounded-lg px-4 py-2"
         >
           {loading ? t.signingIn : t.signIn}
         </button>
@@ -184,7 +184,7 @@ export default function Login({
           setMode("forgot");
           setError(null);
         }}
-        className="text-center text-sm text-blue-600"
+        className="text-center text-sm link-teal"
       >
         {t.forgotLink}
       </button>
