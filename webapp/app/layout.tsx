@@ -4,23 +4,19 @@ import SwRegister from "@/components/SwRegister";
 import { AuthProvider } from "@/lib/auth";
 
 export const metadata: Metadata = {
-  title: "Mesh Familia",
+  title: "Trama — Una sola red.",
   description:
-    "Chat con tu familia en campo por red mesh, sin que ellos tengan internet.",
+    "Una sola conexión a internet, toda una región conectada. Red mesh LoRa con IA para zonas sin cobertura celular.",
   manifest: "/manifest.webmanifest",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Mesh Familia",
-  },
-  icons: {
-    icon: "/icon-192.png",
-    apple: "/icon-192.png",
+    title: "Trama",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#1565c0",
+  themeColor: "#0b1f33",
   width: "device-width",
   initialScale: 1,
 };

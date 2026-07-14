@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { supabase } from "@/lib/supabase";
 
-export default function Login() {
+export default function Login({ onBack }: { onBack?: () => void }) {
   const [mode, setMode] = useState<"login" | "forgot">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -81,11 +82,26 @@ export default function Login() {
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-sm flex-col justify-center gap-6 p-6">
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="self-start text-sm text-blue-600"
+        >
+          ← Volver
+        </button>
+      )}
       <div className="text-center">
-        <div className="text-4xl">📡</div>
-        <h1 className="mt-2 text-xl font-semibold">Mesh Familia</h1>
+        <Image
+          src="/trama-logo.png"
+          alt="Trama"
+          width={72}
+          height={72}
+          className="mx-auto rounded-xl"
+          priority
+        />
+        <h1 className="mt-3 text-xl font-semibold">Trama</h1>
         <p className="text-sm text-slate-500">
-          Inicia sesión para escribirle a tu familia en campo.
+          Inicia sesión para ver tus nodos y escribir a tu gente en campo.
         </p>
       </div>
 

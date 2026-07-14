@@ -9,7 +9,7 @@ import {
 } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "./supabase";
-import Login from "@/components/Login";
+import Landing from "@/components/Landing";
 
 export type Contact = {
   id: number;
@@ -86,7 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       </div>
     );
   } else if (!user) {
-    content = <Login />;
+    content = <Landing />;
   } else if (!contact) {
     content = (
       <div className="mx-auto flex min-h-dvh max-w-sm flex-col items-center justify-center gap-4 p-6 text-center">
