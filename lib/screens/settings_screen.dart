@@ -55,7 +55,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           children: [
             const Text(
-              'ID del nodo Meshtastic del gateway (formato !hex, ej. !9ea1ff28). '
+              'ID del nodo Meshtastic del gateway (formato !hex, ej. !40883c41). '
               'A este nodo se envían las consultas @claude.',
               style: TextStyle(fontSize: 13),
             ),
@@ -64,7 +64,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               controller: controller,
               decoration: const InputDecoration(
                 labelText: 'Node ID',
-                hintText: '!9ea1ff28',
+                hintText: '!40883c41',
                 border: OutlineInputBorder(),
               ),
             ),

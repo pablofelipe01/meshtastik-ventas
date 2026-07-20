@@ -36,7 +36,7 @@ Chat entre nodos de la malla.
 - Estado de la conexión BLE (conectado / conectando / error).
 - Nodo BLE conectado y tu Node ID.
 - **Nodo del gateway** (editable): el `!hex` al que se mandan los `@claude`.
-  Por defecto `!9ea1ff28`.
+  Por defecto `!40883c41`.
 - Cambiar / olvidar el nodo BLE (vuelve a la pantalla de selección).
 
 ---

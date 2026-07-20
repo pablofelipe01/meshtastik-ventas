@@ -14,8 +14,8 @@ recibir la respuesta con un par de saltos de la mesh.
 App/Nodo ──BLE/LoRa──► Nodo mesh ──LoRa (multi-hop)──► Nodo gateway ──USB──► Pi (gateway.py) ──WiFi──► Claude API
 ```
 
-- **Nodo del gateway (este proyecto):** `!9ea1ff28` / `nodeNum 2661416744` (Heltec V3).
-- **Host de referencia:** `ssh pfac@pi5-meshportatil`, código en `~/mesh-portatil/gateway/`.
+- **Nodo del gateway (este proyecto):** `!40883c41` / `nodeNum 1082670145` (Central, Seeed Wio Tracker L1).
+- **Host de referencia:** `ssh pfac@pi4-meshportatil-show`, código en `~/mesh-portatil/gateway/`. (La `pi5-meshportatil` / Heltec `!9ea1ff28` queda de respaldo.)
 
 ---
 

@@ -16,8 +16,8 @@ class MeshtasticService extends ChangeNotifier {
   /// Payload útil máximo por paquete Meshtastic.
   static const int _maxMessageBytes = 200;
 
-  /// Nodo del gateway por defecto (Heltec V3 en pi5-meshportatil): !9ea1ff28.
-  static const int defaultGatewayNodeId = 0x9ea1ff28; // 2661416744
+  /// Nodo del gateway por defecto (Central, Wio Tracker L1 en pi4-meshportatil-show): !40883c41.
+  static const int defaultGatewayNodeId = 0x40883c41; // 1082670145
 
   static const int _broadcastNum = 0xFFFFFFFF;
 
