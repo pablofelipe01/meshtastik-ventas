@@ -1,6 +1,7 @@
 # Módulo Campo — captura agroindustrial sobre la mesh
 
-> **Estado:** Fase 1 completa (catálogo + esquema + Airtable). Fases 2–5 pendientes.
+> **Estado:** Fases 1 y 2 completas (catálogo, esquema, gateway y espejo Airtable,
+> probados de punta a punta). Fases 3–5 pendientes.
 
 ## El problema que resuelve
 
@@ -157,11 +158,57 @@ conviene tenerlo claro para no prometer de más en una demo.
 
 ---
 
+---
+
+## El gateway (`gateway/campo.py`)
+
+Se activa solo si hay `SUPABASE_URL` + `SUPABASE_SERVICE_KEY`. Al arrancar carga
+el catálogo en memoria y levanta tres hilos:
+
+| Hilo | Qué hace |
+|---|---|
+| `_flush_loop` | Escribe en Supabase la cola local (cada 5 s). |
+| `_catalog_loop` | Refresca el catálogo en memoria (cada 5 min). |
+| `_airtable_loop` | Sube a Airtable lo que aún no está espejado (cada 10 s). |
+
+**Cola local (`campo_outbox.json`)** — igual que el puente de familia: la captura
+se encola y se responde el ACK de inmediato; si el internet del gateway está
+caído, se reintenta hasta escribir. Sobrevive reinicios, así que **ninguna
+captura se pierde**.
+
+**El espejo se maneja desde la base, no desde la cola:** el hilo busca capturas
+con `airtable_synced_at is null`. Si Airtable falla, se reintenta solo, y nunca
+se duplica (queda registrado `airtable_record_id`).
+
+**Catálogo obstinado:** si un lote no aparece, fuerza un refresco (máx. una vez
+cada 30 s) y reintenta antes de rechazar — así un lote recién creado funciona sin
+reiniciar el gateway.
+
+### Probar sin radio
+
+```bash
+cd ~/mesh-portatil/gateway
+echo '@ag|FRJ|L1|P2|47' | .venv/bin/python gateway.py --simulate --como '!7c1a5974'
+```
+
+`--como` simula qué nodo envía — imprescindible aquí, porque el operario se
+deduce del nodo. Acepta `!hex`, `0x…` o decimal.
+
+### Respuestas al operario
+
+```
+✓ FRJ L1P2 47 frutos          captura aceptada
+✗ lote L9 no existe en ESP    código equivocado
+✗ severidad debe ser 1..5     valor fuera de rango
+✗ nodo !deadbeef sin operario registrado
+```
+
+---
+
 ## Pendiente
 
 | Fase | Qué falta |
 |---|---|
-| 2 | `gateway/campo.py`: parseo de `@ag|…`, validación, inserción, ACK y espejo a Airtable. |
 | 3 | Pestaña **Campo** en la app Flutter: formularios, selector lote/parcela, cola offline. |
 | 4 | Webapp: mapa de lotes, feed en vivo, KPIs y liquidación de jornal. |
 | 5 | Guion de demo de ventas. |

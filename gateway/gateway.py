@@ -45,6 +45,7 @@ from claude_mesh import handle_claude, is_claude_query  # noqa: E402
 from claude_mesh import _chunk_for_mesh, send_text  # noqa: E402
 import bridge  # noqa: E402  puente mesh↔internet (Supabase); no-op si no está configurado
 import mailer  # noqa: E402  envío de correos desde la mesh; no-op si no hay SMTP
+import campo   # noqa: E402  captura agroindustrial (@ag|...); no-op si no está configurado
 
 
 def _node_hex(node_num) -> str:
@@ -150,6 +151,16 @@ def on_receive(packet, interface):
         if is_claude_query(text):
             threading.Thread(
                 target=handle_claude,
+                args=(_conn.get() or interface, from_num, text),
+                daemon=True,
+            ).start()
+            return
+
+        # Captura de campo "@ag|..." (canal o DM). Va antes del puente, que se
+        # queda con cualquier DM suelto.
+        if campo.is_campo_message(text):
+            threading.Thread(
+                target=campo.handle_campo,
                 args=(_conn.get() or interface, from_num, text),
                 daemon=True,
             ).start()
@@ -281,6 +292,7 @@ def run_live():
     pub.subscribe(on_connection_lost, "meshtastic.connection.lost")
 
     bridge.start(_conn, _my_num, _stop)
+    campo.start(_stop)
 
     log.info("🚀 Gateway en marcha. @claude activo. Ctrl-C para salir.")
     try:
@@ -315,36 +327,55 @@ class _FakeInterface:
         print(f"[SIM enviar → {_node_hex(destinationId)}] {text}")
 
 
-def run_simulate():
+def run_simulate(from_num: int = 0x12345678):
     log.info("🧪 Modo simulador. Escribe mensajes (Ctrl-D para salir).")
     log.info("   Ej:  @claude ¿cuánto es 2+2?")
+    log.info("   Ej:  @ag|FRJ|L1|P2|47   (usa --como para elegir el nodo emisor)")
     iface = _FakeInterface()
     _conn.set(iface)
+    campo.start(_stop)
     for line in sys.stdin:
         text = line.rstrip("\n")
         if not text:
             continue
         packet = {
             "decoded": {"portnum": "TEXT_MESSAGE_APP", "text": text},
-            "from": 0x12345678,
+            "from": from_num,
             "to": BROADCAST_NUM,
         }
         on_receive(packet, iface)
         time.sleep(0.2)  # deja que el hilo de Claude arranque
+    # Vacía la cola de campo y corta los bucles antes de esperar a los hilos:
+    # sin _stop, los bucles daemon nunca terminan y el join agotaría su timeout.
+    campo.flush_pending()
+    _stop.set()
     # Espera a que terminen los hilos de Claude en vuelo antes de salir.
     for t in threading.enumerate():
         if t is not threading.current_thread() and t.daemon:
             t.join(timeout=CLAUDE_JOIN_TIMEOUT)
 
 
+def _parse_node_arg(s: str) -> int:
+    """Acepta un nodo como '!7c1a5974', '0x7c1a5974' o '2082101620'."""
+    s = (s or "").strip()
+    if s.startswith("!"):
+        return int(s[1:], 16)
+    if s.lower().startswith("0x"):
+        return int(s, 16)
+    return int(s)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Gateway mesh portátil (@claude)")
     ap.add_argument("--simulate", action="store_true",
                     help="lee mensajes de stdin sin radio (desarrollo)")
+    ap.add_argument("--como", default="0x12345678",
+                    help="nodo emisor a simular: !hex, 0x... o decimal "
+                         "(p. ej. !7c1a5974 para capturar como ese operario)")
     args = ap.parse_args()
 
     if args.simulate:
-        run_simulate()
+        run_simulate(_parse_node_arg(args.como))
     else:
         run_live()
 
