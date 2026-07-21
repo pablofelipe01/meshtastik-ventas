@@ -16,6 +16,10 @@ export type Contact = {
   name: string;
   email: string;
   is_admin: boolean;
+  /** Cliente al que pertenece. null en el personal de Trama. */
+  cliente_id: number | null;
+  /** Personal de Trama: ve y administra todos los clientes. */
+  es_super: boolean;
 };
 
 type AuthState = {
@@ -48,7 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // RLS deja ver solo la propia fila de contacto.
       const { data } = await supabase
         .from("contacts")
-        .select("id,name,email,is_admin")
+        .select("id,name,email,is_admin,cliente_id,es_super")
         .maybeSingle();
       if (active) setContact((data as Contact) ?? null);
     }

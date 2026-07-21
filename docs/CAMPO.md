@@ -85,6 +85,7 @@ Todas las tablas llevan prefijo `campo_` para quedar aisladas del módulo de cha
 
 | Tabla | Rol |
 |---|---|
+| `campo_clientes` | Cada cliente. Toda tabla de datos lleva su `cliente_id`. |
 | `campo_cultivos` | Catálogo de cultivos y su unidad de cosecha. |
 | `campo_plagas` | Catálogo de plagas/enfermedades con nombre científico. |
 | `campo_fincas` | Finca: ubicación, altitud, hectáreas. |
@@ -102,7 +103,12 @@ En `campo_capturas` hay dos marcas de tiempo distintas a propósito:
 La diferencia entre ambas **es la métrica que vende el producto**: mide la demora
 que el cliente sufre hoy y que aquí es de segundos.
 
-**RLS:** lectura para usuarios autenticados; el gateway escribe con `service_role`.
+**RLS (multi-cliente):** cada usuario lee **solo las filas de su cliente**; el
+personal de Trama (`contacts.es_super`) las ve todas. Lo impone Postgres, no la
+aplicación. El gateway escribe con `service_role` —que salta RLS— y por eso
+estampa él mismo el `cliente_id` desde `CAMPO_CLIENTE_ID`.
+Ver [`REPLICAR.md`](REPLICAR.md) para dar de alta un cliente y comprobar el
+aislamiento.
 
 ---
 
@@ -272,7 +278,6 @@ promesa: es una medición, y el panel de análisis la calcula sola.
 
 ## Lo que falta
 
-- Aislamiento entre clientes en una sola base (ver [`REPLICAR.md`](REPLICAR.md)).
 - Cultivos y plagas se editan por SQL; fincas, lotes, parcelas y operarios ya se
   gestionan desde `/campo/catalogo`.
 - La inferencia real de la cámara de conteo de ganado (la arquitectura está

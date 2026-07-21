@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin, requireAdmin } from "@/lib/supabaseAdmin";
+import { supabaseAdmin, requireAdminCtx, type CtxAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -125,6 +125,65 @@ function validar(entidad: Entidad, f: Record<string, unknown>): string | null {
   }
 }
 
+/**
+ * A qué cliente pertenece la fila que se va a escribir.
+ *
+ * Se DERIVA del padre (la finca del lote, el lote de la parcela) en vez de
+ * creerle al navegador: así es imposible colar un lote de un cliente bajo la
+ * finca de otro. Devuelve un mensaje de error si no se puede determinar o si
+ * ese administrador no tiene permiso sobre ese cliente.
+ */
+async function resolverCliente(
+  entidad: Entidad,
+  f: Record<string, unknown>,
+  ctx: CtxAdmin,
+  clienteSolicitado: unknown,
+): Promise<{ clienteId?: number; error?: string }> {
+  let clienteId: number | null = null;
+
+  if (entidad === "finca") {
+    // Un super puede elegir cliente; cualquier otro admin usa el suyo.
+    clienteId = ctx.esSuper ? (num(clienteSolicitado) ?? ctx.clienteId) : ctx.clienteId;
+    if (clienteId == null) return { error: "Elige a qué cliente pertenece la finca." };
+  } else if (entidad === "lote" || entidad === "operario") {
+    const { data } = await supabaseAdmin
+      .from("campo_fincas")
+      .select("cliente_id")
+      .eq("codigo", texto(f.finca_codigo))
+      .maybeSingle();
+    if (!data) return { error: "Esa finca no existe." };
+    clienteId = data.cliente_id as number;
+  } else {
+    const { data } = await supabaseAdmin
+      .from("campo_lotes")
+      .select("cliente_id")
+      .eq("id", num(f.lote_id) ?? -1)
+      .maybeSingle();
+    if (!data) return { error: "Ese lote no existe." };
+    clienteId = data.cliente_id as number;
+  }
+
+  if (!ctx.esSuper && clienteId !== ctx.clienteId) {
+    return { error: "No puedes modificar el catálogo de otro cliente." };
+  }
+  return { clienteId };
+}
+
+/** Comprueba que el admin puede tocar una fila ya existente. */
+async function puedeTocar(
+  entidad: Entidad,
+  id: string | number,
+  ctx: CtxAdmin,
+): Promise<boolean> {
+  if (ctx.esSuper) return true;
+  const { data } = await supabaseAdmin
+    .from(TABLA[entidad])
+    .select("cliente_id")
+    .eq(CLAVE[entidad], id)
+    .maybeSingle();
+  return !!data && data.cliente_id === ctx.clienteId;
+}
+
 /** Traduce errores de Postgres a algo que un humano entienda. */
 function mensajeError(e: { code?: string; message: string }): string {
   if (e.code === "23505") {
@@ -140,8 +199,8 @@ function mensajeError(e: { code?: string; message: string }): string {
 }
 
 export async function POST(req: Request) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const ctx = await requireAdminCtx(req);
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const entidad = body.entidad;
@@ -151,6 +210,12 @@ export async function POST(req: Request) {
   const fila = limpiar(entidad, (body.datos ?? {}) as Record<string, unknown>);
   const problema = validar(entidad, fila);
   if (problema) return NextResponse.json({ error: problema }, { status: 400 });
+
+  const { clienteId, error: errCliente } = await resolverCliente(
+    entidad, fila, ctx, body.cliente_id,
+  );
+  if (errCliente) return NextResponse.json({ error: errCliente }, { status: 400 });
+  fila.cliente_id = clienteId;
 
   const { data, error } = await supabaseAdmin
     .from(TABLA[entidad])
@@ -164,8 +229,8 @@ export async function POST(req: Request) {
 }
 
 export async function PATCH(req: Request) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const ctx = await requireAdminCtx(req);
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
   const entidad = body.entidad;
@@ -174,6 +239,12 @@ export async function PATCH(req: Request) {
   }
   if (body.id === undefined || body.id === null || body.id === "") {
     return NextResponse.json({ error: "Falta el identificador" }, { status: 400 });
+  }
+  if (!(await puedeTocar(entidad, body.id as string | number, ctx))) {
+    return NextResponse.json(
+      { error: "No puedes modificar el catálogo de otro cliente." },
+      { status: 403 },
+    );
   }
   const fila = limpiar(entidad, (body.datos ?? {}) as Record<string, unknown>);
   const problema = validar(entidad, fila);
@@ -192,14 +263,20 @@ export async function PATCH(req: Request) {
 }
 
 export async function DELETE(req: Request) {
-  const admin = await requireAdmin(req);
-  if (!admin) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  const ctx = await requireAdminCtx(req);
+  if (!ctx) return NextResponse.json({ error: "No autorizado" }, { status: 403 });
 
   const url = new URL(req.url);
   const entidad = url.searchParams.get("entidad");
   const id = url.searchParams.get("id");
   if (!esEntidad(entidad) || !id) {
     return NextResponse.json({ error: "Faltan parámetros" }, { status: 400 });
+  }
+  if (!(await puedeTocar(entidad, id, ctx))) {
+    return NextResponse.json(
+      { error: "No puedes modificar el catálogo de otro cliente." },
+      { status: 403 },
+    );
   }
   const { error } = await supabaseAdmin
     .from(TABLA[entidad])

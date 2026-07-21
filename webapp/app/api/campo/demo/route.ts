@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin, requireAdmin } from "@/lib/supabaseAdmin";
+import { supabaseAdmin, requireAdminCtx } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 
@@ -50,22 +50,40 @@ function elegir<T>(xs: T[]): T {
 }
 
 export async function POST(req: Request) {
-  const admin = await requireAdmin(req);
-  if (!admin) {
+  const ctx = await requireAdminCtx(req);
+  if (!ctx) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
   }
   const body = await req.json().catch(() => ({}));
   const cantidad = Math.min(Math.max(Number(body.cantidad) || 40, 1), 300);
   const dias = Math.min(Math.max(Number(body.dias) || 7, 1), 60);
 
+  // Un super puede generar para el cliente que elija; el resto, solo el suyo.
+  const clienteId = ctx.esSuper
+    ? (Number(body.cliente_id) || ctx.clienteId)
+    : ctx.clienteId;
+  if (!clienteId) {
+    return NextResponse.json(
+      { error: "Elige para qué cliente generar los datos." },
+      { status: 400 },
+    );
+  }
+
   const [{ data: lotes }, { data: parcelas }, { data: operarios }, { data: plagas }] =
     await Promise.all([
-      supabaseAdmin.from("campo_lotes").select("id,finca_codigo,codigo,cultivo"),
-      supabaseAdmin.from("campo_parcelas").select("id,lote_id,codigo,lat,lng"),
+      supabaseAdmin
+        .from("campo_lotes")
+        .select("id,finca_codigo,codigo,cultivo")
+        .eq("cliente_id", clienteId),
+      supabaseAdmin
+        .from("campo_parcelas")
+        .select("id,lote_id,codigo,lat,lng")
+        .eq("cliente_id", clienteId),
       supabaseAdmin
         .from("campo_operarios")
         .select("id,node_num,nombre,tipo,finca_codigo,tarifa_kg")
-        .eq("activo", true),
+        .eq("activo", true)
+        .eq("cliente_id", clienteId),
       supabaseAdmin.from("campo_plagas").select("codigo,nombre,cultivo"),
     ]);
 
@@ -148,6 +166,7 @@ export async function POST(req: Request) {
 
     filas.push({
       tipo,
+      cliente_id: clienteId,
       finca_codigo: op.finca_codigo,
       lote_id: lote.id,
       parcela_id: parcela.id,
@@ -177,16 +196,28 @@ export async function POST(req: Request) {
   return NextResponse.json({ ok: true, insertadas: filas.length });
 }
 
-/** Borra TODAS las capturas de demostración. No toca ningún dato real. */
+/**
+ * Borra las capturas de demostración. No toca ningún dato real, ni las de otro
+ * cliente: un super borra las del cliente que indique; el resto, solo el suyo.
+ */
 export async function DELETE(req: Request) {
-  const admin = await requireAdmin(req);
-  if (!admin) {
+  const ctx = await requireAdminCtx(req);
+  if (!ctx) {
     return NextResponse.json({ error: "No autorizado" }, { status: 403 });
+  }
+  const pedido = Number(new URL(req.url).searchParams.get("cliente_id"));
+  const clienteId = ctx.esSuper ? (pedido || ctx.clienteId) : ctx.clienteId;
+  if (!clienteId) {
+    return NextResponse.json(
+      { error: "Elige de qué cliente borrar los datos." },
+      { status: 400 },
+    );
   }
   const { data, error } = await supabaseAdmin
     .from("campo_capturas")
     .delete()
     .eq("datos->>demo", "true")
+    .eq("cliente_id", clienteId)
     .select("id");
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 400 });

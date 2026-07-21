@@ -28,6 +28,39 @@ export async function requireAdmin(req: Request): Promise<string | null> {
   return c?.is_admin ? email : null;
 }
 
+export type CtxAdmin = {
+  email: string;
+  clienteId: number | null;
+  esSuper: boolean;
+};
+
+/**
+ * Como `requireAdmin`, pero devuelve además a qué cliente pertenece.
+ *
+ * Las rutas que escriben en `campo_*` necesitan saberlo para estampar el
+ * `cliente_id` correcto — y para comprobar que ese admin puede tocar ese
+ * cliente. Nunca se toma el cliente de lo que manda el navegador.
+ */
+export async function requireAdminCtx(req: Request): Promise<CtxAdmin | null> {
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.startsWith("Bearer ") ? auth.slice(7) : "";
+  if (!token) return null;
+  const { data, error } = await supabaseAdmin.auth.getUser(token);
+  const email = data?.user?.email;
+  if (error || !email) return null;
+  const { data: c } = await supabaseAdmin
+    .from("contacts")
+    .select("is_admin,cliente_id,es_super")
+    .eq("email", email)
+    .maybeSingle();
+  if (!c?.is_admin) return null;
+  return {
+    email,
+    clienteId: (c.cliente_id as number | null) ?? null,
+    esSuper: Boolean(c.es_super),
+  };
+}
+
 /** Clave temporal legible (sin caracteres ambiguos). */
 export function tempPassword(len = 10): string {
   const chars = "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789";

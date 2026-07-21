@@ -40,6 +40,14 @@ export type Finca = {
   lat: number;
   lng: number;
   altitud_msnm: number | null;
+  cliente_id: number;
+};
+
+export type Cliente = {
+  id: number;
+  nombre: string;
+  slug: string;
+  activo: boolean;
 };
 
 /**

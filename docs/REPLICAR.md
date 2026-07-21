@@ -10,7 +10,8 @@ Una unidad son cuatro piezas, y solo una cambia mucho por cliente:
 |---|---|
 | **Hardware** (Pi + radios) | No — es la misma receta |
 | **Software del gateway** | No — se copia tal cual, cambia el `.env` |
-| **Nube** (Supabase + Airtable) | Sí — proyecto nuevo por cliente (ver aviso abajo) |
+| **Nube** (Supabase) | No — una sola base sirve a todos (multi-cliente) |
+| **Airtable** | Sí — una base por cliente |
 | **Catálogo** (fincas, lotes, operarios) | **Sí — esto es el trabajo a la medida** |
 
 Si tienes prisa: casi todo se copia, y el 80 % del trabajo real está en
@@ -18,22 +19,51 @@ Si tienes prisa: casi todo se copia, y el 80 % del trabajo real está en
 
 ---
 
-## ⚠️ Antes de vender: el aislamiento entre clientes
+## El aislamiento entre clientes (multi-cliente)
 
-**Hoy el sistema no separa clientes.** Las políticas RLS de las tablas `campo_*`
-dan lectura a **cualquier usuario autenticado**, sobre **todos** los datos. Si
-metes dos clientes en el mismo proyecto de Supabase, **cada uno vería los datos
-del otro**.
+**Un solo proyecto de Supabase sirve a todos los clientes**, y cada uno ve
+únicamente lo suyo. Un cliente nuevo es **una fila**, no un despliegue.
 
-Para un cliente real, elige una de estas dos:
+Cómo funciona:
 
-- **Un proyecto de Supabase por cliente** (recomendado para los primeros).
-  Aislamiento total, cero código nuevo, cuesta un proyecto más. Es lo que
-  describe este manual.
-- **Multi-cliente en un solo proyecto.** Requiere trabajo que **todavía no está
-  hecho**: una tabla `clientes`, una columna `cliente_id` en cada tabla `campo_*`
-  y políticas RLS que filtren por el cliente del usuario. No lo improvises el día
-  antes de entregar.
+- Tabla `campo_clientes`, y una columna `cliente_id` en `campo_fincas`,
+  `campo_lotes`, `campo_parcelas`, `campo_operarios` y `campo_capturas`
+  (obligatoria: no puede entrar una fila sin dueño).
+- Las políticas RLS filtran por el cliente de quien pregunta. **El aislamiento lo
+  impone Postgres, no la aplicación**: aunque la webapp pidiera todo por un
+  error, la base solo devuelve lo del cliente. Esa es la parte que lo hace
+  confiable.
+- `contacts.cliente_id` dice a qué cliente pertenece cada usuario;
+  `contacts.es_super` marca al personal de Trama, que ve y administra todos.
+- **Cada gateway sirve a UN cliente**: `CAMPO_CLIENTE_ID` en su `.env`. Como el
+  gateway usa `service_role` (que salta RLS), es él quien estampa el cliente en
+  cada captura y quien filtra su catálogo.
+
+### Dar de alta un cliente
+
+```sql
+insert into campo_clientes (nombre, slug) values ('Agrícola X', 'agricola-x');
+```
+
+Después: crea sus usuarios en `contacts` con ese `cliente_id`, pon
+`CAMPO_CLIENTE_ID` en el `.env` de su gateway, y monta su catálogo desde
+`/campo/catalogo` (el personal de Trama elige el cliente en un desplegable).
+
+### Comprobar que el aislamiento funciona
+
+No lo des por hecho: pruébalo. En el editor SQL de Supabase, simulando ser un
+usuario del cliente:
+
+```sql
+begin;
+set local role authenticated;
+set local request.jwt.claims = '{"email":"usuario@delcliente.com"}';
+select count(*), string_agg(nombre, ', ') from campo_fincas;
+rollback;
+```
+
+Debe devolver **solo** las fincas de ese cliente. Repítelo con un usuario de otro
+cliente y con uno `es_super` (que debe verlas todas).
 
 ---
 
@@ -117,8 +147,9 @@ Lo mínimo para el módulo Campo:
 ```
 MESH_SERIAL_PORT=            # vacío = autodetectar
 ANTHROPIC_API_KEY=…
-SUPABASE_URL=…               # del proyecto del cliente
+SUPABASE_URL=…
 SUPABASE_SERVICE_KEY=…
+CAMPO_CLIENTE_ID=…           # a QUÉ cliente sirve este gateway (campo_clientes.id)
 AIRTABLE_TOKEN=…             # PAT acotado SOLO a la base del cliente
 AIRTABLE_BASE_ID=…
 AIRTABLE_TABLE_ID=…
@@ -165,13 +196,17 @@ Debe aparecer:
 
 ### Supabase
 
-Crea un **proyecto nuevo para el cliente** y aplica las migraciones del módulo
-Campo en este orden:
+**No hace falta un proyecto nuevo**: la misma base sirve a todos los clientes
+(ver [multi-cliente](#el-aislamiento-entre-clientes-multi-cliente)). Basta con
+dar de alta el cliente y su catálogo.
+
+Si estás montando el proyecto **desde cero**, el orden de las migraciones es:
 
 1. Esquema `campo_*` (tablas, índices y RLS)
-2. Catálogo del cliente (ver la sección siguiente)
-3. Vista `campo_jornal_dia`
-4. **Realtime** — el que más se olvida:
+2. Multi-cliente (`campo_clientes`, columnas `cliente_id`, políticas)
+3. Catálogo del cliente (ver la sección siguiente)
+4. Vista `campo_jornal_dia`
+5. **Realtime** — el que más se olvida:
 
 ```sql
 alter publication supabase_realtime add table campo_capturas;
@@ -363,7 +398,6 @@ Todas estas nos costaron tiempo de verdad. Léelas antes, no después.
 
 Sé honesto con el cliente sobre esto; ninguno es difícil, pero ninguno está.
 
-- **Aislamiento entre clientes** en una sola base (ver el aviso del principio).
 - **Cultivos y plagas** todavía se editan por SQL (el resto del catálogo ya no).
 - **Conteo por cámara real**: la arquitectura está lista y el nodo se registra
   como dispositivo, pero la inferencia no está implementada.

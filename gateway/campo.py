@@ -54,7 +54,12 @@ FLUSH_SECONDS = float(os.getenv("CAMPO_FLUSH_SECONDS", "5"))
 AIRTABLE_SECONDS = float(os.getenv("CAMPO_AIRTABLE_SECONDS", "10"))
 _HTTP_TIMEOUT = 15
 
-ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_KEY)
+# Cada gateway sirve a UN cliente. Como usa service_role (que salta las
+# políticas RLS), es él quien tiene que estampar el cliente en cada fila y
+# filtrar el catálogo: sin esto vería y mezclaría datos de otros clientes.
+CLIENTE_ID = os.getenv("CAMPO_CLIENTE_ID", "").strip()
+
+ENABLED = bool(SUPABASE_URL and SUPABASE_SERVICE_KEY and CLIENTE_ID)
 AIRTABLE_ENABLED = bool(AIRTABLE_TOKEN and AIRTABLE_BASE_ID and AIRTABLE_TABLE_ID)
 
 PREFIX = "@ag|"
@@ -128,12 +133,14 @@ def _get(path):
 
 
 def load_catalog() -> None:
-    """Trae el catálogo completo de Supabase a memoria."""
-    fincas = _get("campo_fincas?select=codigo,nombre,municipio,departamento")
+    """Trae el catálogo de ESTE cliente de Supabase a memoria."""
+    dc = f"&cliente_id=eq.{CLIENTE_ID}"  # nunca datos de otro cliente
+    fincas = _get(f"campo_fincas?select=codigo,nombre,municipio,departamento{dc}")
     operarios = _get("campo_operarios?select=id,node_num,nombre,tipo,finca_codigo,"
-                     "tarifa_kg&activo=eq.true")
-    lotes = _get("campo_lotes?select=id,finca_codigo,codigo,nombre,cultivo,lat,lng")
-    parcelas = _get("campo_parcelas?select=id,lote_id,codigo,nombre,lat,lng")
+                     f"tarifa_kg&activo=eq.true{dc}")
+    lotes = _get(f"campo_lotes?select=id,finca_codigo,codigo,nombre,cultivo,lat,lng{dc}")
+    parcelas = _get(f"campo_parcelas?select=id,lote_id,codigo,nombre,lat,lng{dc}")
+    # Cultivos y plagas son catálogos de códigos compartidos entre clientes.
     cultivos = _get("campo_cultivos?select=codigo,nombre,unidad_cosecha")
     plagas = _get("campo_plagas?select=codigo,nombre,cultivo")
 
@@ -270,6 +277,7 @@ def _parse(text: str, from_num: int) -> dict:
 
     return {
         "tipo": tipo,
+        "cliente_id": int(CLIENTE_ID),
         "finca_codigo": finca,
         "lote_id": lote["id"],
         "parcela_id": parcela["id"],
@@ -498,7 +506,9 @@ def _airtable_fields(cap: dict) -> dict:
 
 def _mirror_once() -> None:
     """Sube a Airtable las capturas que aún no se han espejado."""
-    pendientes = _get("campo_capturas?airtable_synced_at=is.null"
+    # Solo las de este cliente: cada cliente tiene su propia base de Airtable.
+    pendientes = _get(f"campo_capturas?airtable_synced_at=is.null"
+                      f"&cliente_id=eq.{CLIENTE_ID}"
                       "&order=recibido_at.asc&limit=10")
     if not pendientes:
         return
@@ -560,7 +570,9 @@ def _airtable_loop(stop_event) -> None:
 def start(stop_event) -> None:
     """Arranca el módulo Campo (si está configurado)."""
     if not ENABLED:
-        log.info("🌱 Módulo Campo desactivado (falta SUPABASE_URL/SERVICE_KEY).")
+        falta = "SUPABASE_URL/SERVICE_KEY" if not (SUPABASE_URL and SUPABASE_SERVICE_KEY) \
+            else "CAMPO_CLIENTE_ID (a qué cliente sirve este gateway)"
+        log.info("🌱 Módulo Campo desactivado (falta %s).", falta)
         return
     try:
         load_catalog()
@@ -575,4 +587,4 @@ def start(stop_event) -> None:
                          daemon=True).start()
     else:
         log.info("🪞 Espejo Airtable desactivado (falta AIRTABLE_TOKEN/BASE/TABLE).")
-    log.info("🌱 Módulo Campo activo. Tramas @ag|...")
+    log.info("🌱 Módulo Campo activo (cliente %s). Tramas @ag|...", CLIENTE_ID)

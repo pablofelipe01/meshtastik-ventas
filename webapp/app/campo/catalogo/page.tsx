@@ -5,7 +5,7 @@ import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
 import SelectorMapa, { PuntoRef } from "@/components/SelectorMapa";
-import { Finca, Lote } from "@/lib/campoTypes";
+import { Cliente, Finca, Lote } from "@/lib/campoTypes";
 
 type Parcela = {
   id: number;
@@ -45,6 +45,8 @@ export default function Catalogo() {
   const [operarios, setOperarios] = useState<Operario[]>([]);
   const [cultivos, setCultivos] = useState<Cultivo[]>([]);
   const [nodos, setNodos] = useState<NodoVisto[]>([]);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [clienteSel, setClienteSel] = useState<number | null>(null);
 
   const [fincaSel, setFincaSel] = useState<string>("");
   const [loteSel, setLoteSel] = useState<number | null>(null);
@@ -56,13 +58,14 @@ export default function Catalogo() {
   const [cargando, setCargando] = useState(true);
 
   const load = useCallback(async () => {
-    const [f, l, p, o, c, n] = await Promise.all([
+    const [f, l, p, o, c, n, cl] = await Promise.all([
       supabase.from("campo_fincas").select("*").order("nombre"),
       supabase.from("campo_lotes").select("*").order("codigo"),
       supabase.from("campo_parcelas").select("*").order("codigo"),
       supabase.from("campo_operarios").select("*").order("nombre"),
       supabase.from("campo_cultivos").select("codigo,nombre").order("nombre"),
       supabase.from("nodes").select("node_num,node_id,long_name").order("long_name"),
+      supabase.from("campo_clientes").select("*").eq("activo", true).order("nombre"),
     ]);
     setFincas((f.data as Finca[]) ?? []);
     setLotes((l.data as Lote[]) ?? []);
@@ -70,6 +73,7 @@ export default function Catalogo() {
     setOperarios((o.data as Operario[]) ?? []);
     setCultivos((c.data as Cultivo[]) ?? []);
     setNodos((n.data as NodoVisto[]) ?? []);
+    setClientes((cl.data as Cliente[]) ?? []);
     setCargando(false);
   }, []);
 
@@ -77,11 +81,30 @@ export default function Catalogo() {
     load();
   }, [load]);
 
+  // El personal de Trama trabaja sobre el cliente que elija; un admin de
+  // cliente solo puede ver el suyo (RLS ya se lo garantiza).
   useEffect(() => {
-    if (!fincaSel && fincas.length) setFincaSel(fincas[0].codigo);
-  }, [fincas, fincaSel]);
+    if (clienteSel != null) return;
+    if (contact?.es_super) {
+      if (clientes.length) setClienteSel(clientes[0].id);
+    } else if (contact?.cliente_id != null) {
+      setClienteSel(contact.cliente_id);
+    }
+  }, [clientes, contact, clienteSel]);
 
-  const finca = fincas.find((f) => f.codigo === fincaSel) ?? null;
+  const fincasCliente = useMemo(
+    () => (clienteSel == null ? fincas : fincas.filter((f) => f.cliente_id === clienteSel)),
+    [fincas, clienteSel],
+  );
+
+  useEffect(() => {
+    if (fincasCliente.length && !fincasCliente.some((f) => f.codigo === fincaSel)) {
+      setFincaSel(fincasCliente[0].codigo);
+      setLoteSel(null);
+    }
+  }, [fincasCliente, fincaSel]);
+
+  const finca = fincasCliente.find((f) => f.codigo === fincaSel) ?? null;
   const susLotes = useMemo(
     () => lotes.filter((l) => l.finca_codigo === fincaSel),
     [lotes, fincaSel],
@@ -125,7 +148,13 @@ export default function Catalogo() {
     setOk(null);
     try {
       if (ed.id === null) {
-        await enviar("POST", { entidad: ed.entidad, datos: ed.datos });
+        // El servidor decide el cliente definitivo; esto solo es la propuesta
+        // de un super, y solo cuenta al crear una finca.
+        await enviar("POST", {
+          entidad: ed.entidad,
+          datos: ed.datos,
+          cliente_id: clienteSel,
+        });
       } else {
         await enviar("PATCH", { entidad: ed.entidad, id: ed.id, datos: ed.datos });
       }
@@ -198,9 +227,34 @@ export default function Catalogo() {
       ) : (
         <>
           {/* ---------- Fincas ---------- */}
+          {/* Selector de cliente: solo para el personal de Trama. */}
+          {contact.es_super && (
+            <Seccion titulo="Cliente">
+              <select
+                value={clienteSel ?? ""}
+                onChange={(e) => {
+                  setClienteSel(Number(e.target.value));
+                  setFincaSel("");
+                  setLoteSel(null);
+                }}
+                className="field w-full rounded-lg px-3 py-2 text-sm"
+              >
+                {clientes.map((c) => (
+                  <option key={c.id} value={c.id} className="bg-[#0b1f33]">
+                    {c.nombre}
+                  </option>
+                ))}
+              </select>
+              <p className="mt-1.5 text-[11px] text-slate-500">
+                Ves todos los clientes porque eres personal de Trama. Cada
+                cliente solo se ve a sí mismo.
+              </p>
+            </Seccion>
+          )}
+
           <Seccion titulo="Fincas">
             <div className="mb-3 flex flex-wrap gap-2">
-              {fincas.map((f) => (
+              {fincasCliente.map((f) => (
                 <button
                   key={f.codigo}
                   onClick={() => {

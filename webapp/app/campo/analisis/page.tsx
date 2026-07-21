@@ -157,19 +157,32 @@ export default function Analisis() {
   }, [visibles]);
 
   // ---- Datos de demostración ----
+  // Para el personal de Trama, el cliente sale de la finca en pantalla; el
+  // servidor lo valida igualmente y nunca deja tocar el de otro.
+  const clienteActivo =
+    fincas.find((f) => f.codigo === fincaSel)?.cliente_id ??
+    fincas[0]?.cliente_id ??
+    contact?.cliente_id ??
+    null;
+
   async function llamarDemo(metodo: "POST" | "DELETE") {
     setTrabajando(true);
     setAviso(null);
     try {
       const { data } = await supabase.auth.getSession();
       const token = data.session?.access_token;
-      const r = await fetch("/api/campo/demo", {
+      const qs =
+        metodo === "DELETE" && clienteActivo ? `?cliente_id=${clienteActivo}` : "";
+      const r = await fetch(`/api/campo/demo${qs}`, {
         method: metodo,
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: metodo === "POST" ? JSON.stringify({ cantidad: 60, dias: 7 }) : undefined,
+        body:
+          metodo === "POST"
+            ? JSON.stringify({ cantidad: 60, dias: 7, cliente_id: clienteActivo })
+            : undefined,
       });
       const j = await r.json();
       if (!r.ok) throw new Error(j.error ?? "falló");
