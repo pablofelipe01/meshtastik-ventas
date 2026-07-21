@@ -325,7 +325,7 @@ validar** — ver la nota en `webapp/lib/campoTypes.ts`.
 
 ## Probado por radio real
 
-El 2026-07-21, con la unidad armada:
+El 2026-07-21, con la unidad armada. Captura de un operario:
 
 ```
 15:48:42  [DM] !a8656e83 → !40883c41 : @ag|FRJ|L3|P3|790|t1784666920
@@ -333,9 +333,22 @@ El 2026-07-21, con la unidad armada:
 15:48:45  → Supabase  → Airtable
 ```
 
-**5 segundos** desde que el operario pulsa "Registrar" en un teléfono sin señal
-celular hasta que el dato está en la base y en Airtable. Esa cifra ya no es una
-promesa: es una medición, y el panel de análisis la calcula sola.
+Y el conteo de la cámara, con su alerta:
+
+```
+18:53:33  [DM] !7c1a5974 → !40883c41 : @ag|GAN|L1|P1|95|0.99|cam|t1784678012
+18:53:33  ✓ GAN L1P1 95 cabezas ⚠ faltan 25
+18:53:33  captura de CAM-01 Manga de Aforo
+18:53:37  → Supabase
+```
+
+**5 segundos** desde que se pulsa el botón en un teléfono sin señal celular hasta
+que el dato está en la base. Esa cifra ya no es una promesa: es una medición, y
+el panel de análisis la calcula sola.
+
+Nota del segundo caso: lo emitió el nodo de una persona (`!7c1a5974`) y quedó a
+nombre de **CAM-01**, con `simulado: true` y el nodo emisor guardados. La
+historia se cuenta limpia sin falsear el registro.
 
 ## Lo que falta
 

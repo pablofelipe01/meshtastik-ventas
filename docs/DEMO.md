@@ -31,8 +31,14 @@ Haz esto **completo**, en orden. Cada casilla existe porque algo falló alguna v
 - [ ] Sin errores: `sudo journalctl -u mesh-portatil-gateway --since '5 min ago' | grep ERROR`
 
 ### Nodos
-- [ ] Enciende los nodos que vas a usar y confirma que la malla los ve:
-      consulta la tabla `nodes` o mira el mapa en `/campo`
+- [ ] Enciende los nodos que vas a usar y **confirma que la malla los OYE**.
+      No basta con que salgan en la lista: mira el «visto hace» en la tabla
+      `nodes`. Si dice horas, ese nodo está guardado en el catálogo del Central
+      pero **no está vivo** — un nodo recién encendido se anuncia en segundos.
+      Suele ser batería: los T1000-E se agotan en días.
+- [ ] Comprueba que el nodo al que conectas el teléfono pertenece a la finca
+      **que vas a demostrar**. Un nodo de la finca de café no tiene potreros ni
+      cámara, así que el conteo de ganado entra pero sin alerta.
 - [ ] **Comprueba que el nodo del teléfono esté registrado como operario.**
       Si no, el gateway responderá *"sin operario registrado"*. Es correcto —
       el nodo identifica a quién se le paga — pero arruina la demo.

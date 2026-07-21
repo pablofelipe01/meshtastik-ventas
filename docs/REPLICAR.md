@@ -385,6 +385,8 @@ Todas estas nos costaron tiempo de verdad. Léelas antes, no después.
 |---|---|---|
 | **Cable USB de solo carga** | No aparece `/dev/ttyACM*`, sin ningún error | Cable **de datos**, asentado firme. El conector del Wio Tracker es flojo; prueba otro puerto |
 | **Radio conectada después de arrancar** | El gateway arranca pero nunca toma la radio | `sudo systemctl restart mesh-portatil-gateway` |
+| **Copiar código sin reiniciar** | Copias un `.py` nuevo, todo «parece» bien, pero el gateway se comporta como antes | El servicio tiene el código cargado en memoria: **copiar no es desplegar**. `sudo systemctl restart mesh-portatil-gateway`. Comprueba el **proceso**, no el archivo: `systemctl show mesh-portatil-gateway -p ActiveEnterTimestamp --value` debe ser posterior a la copia |
+| **Nodo encendido pero mudo** | Aparece en la lista de nodos, pero su «visto hace» es de horas | Estaba guardado en el catálogo del Central, no está vivo. Un nodo recién encendido se anuncia **en segundos**. Suele ser batería: los T1000-E se agotan en días |
 | **Tailscale se apodera del DNS** | Ping por IP funciona, pero nada resuelve por nombre | `sudo tailscale set --accept-dns=false`. Pasa cuando Tailscale hereda un `resolv.conf` vacío y se queda sin resolvedor upstream |
 | **Falta Realtime** | Todo funciona pero el panel no se actualiza solo | `alter publication supabase_realtime add table campo_capturas;` |
 | **Escuchar `*` en Realtime** | La página se recarga en bucle | Suscríbete solo a `INSERT`: el espejo de Airtable hace `PATCH` a cada fila |
