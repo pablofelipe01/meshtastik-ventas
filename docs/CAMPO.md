@@ -273,6 +273,7 @@ promesa: es una medición, y el panel de análisis la calcula sola.
 ## Lo que falta
 
 - Aislamiento entre clientes en una sola base (ver [`REPLICAR.md`](REPLICAR.md)).
-- Catálogo y alta de operarios desde la webapp: hoy se siembran con SQL.
+- Cultivos y plagas se editan por SQL; fincas, lotes, parcelas y operarios ya se
+  gestionan desde `/campo/catalogo`.
 - La inferencia real de la cámara de conteo de ganado (la arquitectura está
   lista; el nodo ya se registra como dispositivo).

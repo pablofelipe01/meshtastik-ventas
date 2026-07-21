@@ -234,7 +234,27 @@ cliente delante.
 7. **¿Cuánto pagan por kilo?** Va en `tarifa_kg` y alimenta la liquidación.
 8. **¿Qué medirían primero?** Su respuesta decide qué tipos de captura activas.
 
-### Sembrarlo
+### Sembrarlo desde la webapp (lo normal)
+
+Entra a **`/campo/catalogo`** con una cuenta de administrador. Desde ahí se crean
+y editan fincas, lotes, parcelas y operarios sin tocar SQL:
+
+- **Las coordenadas se marcan tocando el mapa satelital**, no se teclean. Al
+  crear un lote, el mapa arranca en la finca y muestra los otros lotes en gris
+  para no marcar a ciegas.
+- **El nodo del operario se elige de una lista** con los nodos que el gateway ha
+  visto en la malla. Así se evita el error más caro: un número mal escrito
+  produce *"sin operario registrado"* y esa persona no puede capturar.
+- **No deja borrar lo que tiene historial.** Si un lote ya tiene capturas, la
+  base lo impide y la pantalla lo dice con palabras.
+
+Tras cualquier cambio, el gateway recoge el catálogo en unos minutos (o al
+instante si reinicias el servicio), y el operario debe pulsar **Descargar
+catálogo** en la app para verlo en el teléfono.
+
+### Sembrarlo por SQL (carga masiva)
+
+Sigue siendo lo más rápido si el cliente te pasa veinte lotes en una hoja:
 
 ```sql
 -- 1. Cultivos y plagas: deja SOLO los que el cliente maneja
@@ -344,8 +364,7 @@ Todas estas nos costaron tiempo de verdad. Léelas antes, no después.
 Sé honesto con el cliente sobre esto; ninguno es difícil, pero ninguno está.
 
 - **Aislamiento entre clientes** en una sola base (ver el aviso del principio).
-- **Catálogo editable desde la webapp**: hoy se siembra con SQL.
-- **Alta de operarios desde la interfaz**: hoy es SQL.
+- **Cultivos y plagas** todavía se editan por SQL (el resto del catálogo ya no).
 - **Conteo por cámara real**: la arquitectura está lista y el nodo se registra
   como dispositivo, pero la inferencia no está implementada.
 - **Histórico más allá de lo que cabe en pantalla**: el panel carga las últimas
