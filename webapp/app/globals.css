@@ -80,3 +80,24 @@ body {
 .link-teal {
   color: var(--teal);
 }
+
+/* Captura recién llegada por la mesh: destello breve en el feed en vivo. */
+@keyframes flash-nuevo {
+  0% {
+    background: rgba(147, 208, 44, 0.22);
+    border-color: rgba(147, 208, 44, 0.55);
+  }
+  100% {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: rgba(255, 255, 255, 0.08);
+  }
+}
+.flash-nuevo {
+  animation: flash-nuevo 5s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .flash-nuevo {
+    animation: none;
+    border-color: rgba(147, 208, 44, 0.55);
+  }
+}

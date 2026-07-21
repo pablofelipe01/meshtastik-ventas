@@ -56,6 +56,9 @@ export default function Home() {
             {contact ? `Hola, ${contact.name}` : "Cargando…"}
           </p>
         </div>
+        <Link href="/campo" className="btn-ghost rounded-lg px-3 py-1.5 text-xs">
+          Campo
+        </Link>
         {contact?.is_admin && (
           <Link
             href="/admin"
