@@ -156,6 +156,15 @@ def on_receive(packet, interface):
             ).start()
             return
 
+        # La app pide el catálogo de su finca para armar los formularios.
+        if campo.is_catalog_request(text):
+            threading.Thread(
+                target=campo.send_catalog,
+                args=(_conn.get() or interface, from_num),
+                daemon=True,
+            ).start()
+            return
+
         # Captura de campo "@ag|..." (canal o DM). Va antes del puente, que se
         # queda con cualquier DM suelto.
         if campo.is_campo_message(text):

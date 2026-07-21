@@ -8,6 +8,7 @@ import 'models/chat_models.dart';
 import 'services/meshtastic_service.dart';
 import 'services/foreground_connection.dart';
 import 'screens/gateway_chat_screen.dart';
+import 'screens/campo_screen.dart';
 import 'screens/family_screen.dart';
 import 'screens/email_screen.dart';
 import 'screens/chat_screen.dart';
@@ -382,12 +383,14 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
         return GatewayChatScreen(
             meshtasticService: _service, channel: GatewayChannel.claude);
       case 1:
-        return FamilyScreen(meshtasticService: _service);
+        return CampoScreen(meshtasticService: _service);
       case 2:
-        return EmailScreen(meshtasticService: _service);
+        return FamilyScreen(meshtasticService: _service);
       case 3:
-        return ChatScreen(meshtasticService: _service);
+        return EmailScreen(meshtasticService: _service);
       case 4:
+        return ChatScreen(meshtasticService: _service);
+      case 5:
         return SettingsScreen(
           meshtasticService: _service,
           onDeviceChange: _navigateToDeviceSelection,
@@ -406,7 +409,7 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
       bottomNavigationBar: NavigationBar(
         selectedIndex: _currentIndex,
         onDestinationSelected: (index) {
-          if (index == 3) _service.clearUnreadChat();
+          if (index == 4) _service.clearUnreadChat();
           setState(() => _currentIndex = index);
         },
         destinations: [
@@ -414,6 +417,15 @@ class _MainScreenState extends State<MainScreen> with WidgetsBindingObserver {
             icon: Icon(Icons.smart_toy_outlined),
             selectedIcon: Icon(Icons.smart_toy),
             label: 'Claude',
+          ),
+          NavigationDestination(
+            icon: Badge(
+              label: Text('${_service.campoPendientesCount}'),
+              isLabelVisible: _service.campoPendientesCount > 0,
+              child: const Icon(Icons.agriculture_outlined),
+            ),
+            selectedIcon: const Icon(Icons.agriculture),
+            label: 'Campo',
           ),
           const NavigationDestination(
             icon: Icon(Icons.people_outline),

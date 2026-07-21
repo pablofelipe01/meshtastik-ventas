@@ -1,7 +1,8 @@
 # Módulo Campo — captura agroindustrial sobre la mesh
 
-> **Estado:** Fases 1 y 2 completas (catálogo, esquema, gateway y espejo Airtable,
-> probados de punta a punta). Fases 3–5 pendientes.
+> **Estado:** Fases 1–4 completas y probadas de punta a punta (catálogo, esquema,
+> gateway, espejo Airtable, app Flutter y panel en vivo). Falta la fase 5
+> (guion de demo).
 
 ## El problema que resuelve
 
@@ -205,10 +206,62 @@ deduce del nodo. Acepta `!hex`, `0x…` o decimal.
 
 ---
 
+## La app (pestaña **Campo**)
+
+Formularios guiados: el operario **elige de listas, nunca teclea códigos**. Elige
+tipo → lote → parcela → valor, y envía. En plagas, la plaga sale de una lista y
+la severidad de un selector 1–5.
+
+**El catálogo llega por la mesh, no por internet.** La app manda `@agcat`, el
+gateway responde con los lotes y parcelas de *su* finca, y la app lo guarda en el
+teléfono. A partir de ahí la captura funciona sin ninguna señal — que es
+exactamente lo que se le promete al cliente.
+
+```
+→ @agcat
+← AGCAT|ESP|La Esperanza|L1:El Alto:CAF:P1,P2,P3|L2:La Cañada:CAF:P1,P2,P3|…
+← AGPLG|BRC:Broca|ESC:Escoba|GAR:Garrapata|…
+```
+
+Cada mensaje cabe en **un solo paquete LoRa** (sin fragmentar).
+
+**Cola offline en el teléfono.** Si no hay malla, la captura se guarda y sale
+sola al reconectar; el número de pendientes aparece en la pestaña. La captura
+guarda su hora real y viaja con el sufijo `t<epoch>`, de modo que el panel puede
+mostrar la demora verdadera. Nada se pierde por estar fuera de cobertura.
+
+Archivos: `lib/models/campo_models.dart`, `lib/screens/campo_screen.dart` y la
+sección Campo de `lib/services/meshtastic_service.dart`.
+
+---
+
+## El panel en vivo (`/campo` en la webapp)
+
+Figura principal con las capturas del día, mapa satelital (lotes en gris,
+capturas en color), fila de indicadores (jornal en kg, pago del día, focos de
+plaga, último conteo de ganado), leyenda y feed que **destella** cuando entra un
+dato nuevo. Filtro por finca que recentra el mapa.
+
+Dos cosas que no son obvias y conviene no romper:
+
+- `campo_capturas` está en la publicación de **Realtime**. Sin eso, la vista en
+  vivo no se actualiza sola — y es el punto entero de la demo.
+- El canal escucha **solo `INSERT`**. El espejo a Airtable hace `PATCH` sobre
+  cada fila; con `*` la página se recargaría en bucle.
+
+**Los colores de los cinco tipos están validados**, no elegidos a ojo: la primera
+versión tenía lima y naranja con ΔE 2,2 bajo deuteranopía (indistinguibles). Se
+corrigió separándolos de posiciones adyacentes. Si cambias un color, **vuelve a
+validar** — ver la nota en `webapp/lib/campoTypes.ts`.
+
+---
+
 ## Pendiente
 
 | Fase | Qué falta |
 |---|---|
-| 3 | Pestaña **Campo** en la app Flutter: formularios, selector lote/parcela, cola offline. |
-| 4 | Webapp: mapa de lotes, feed en vivo, KPIs y liquidación de jornal. |
 | 5 | Guion de demo de ventas. |
+
+Y una prueba que sigue pendiente: **todo se ha verificado por simulación**
+(stdin en el gateway), no con radios reales, porque la unidad está desarmada.
+La lógica está probada; falta confirmar el transporte LoRa con los equipos.

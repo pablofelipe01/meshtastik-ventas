@@ -6,6 +6,7 @@ import 'package:meshtastic_flutter/meshtastic_flutter.dart' hide ConnectionStatu
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../models/chat_models.dart';
+import '../models/campo_models.dart';
 
 /// Servicio de chat sobre Meshtastic (BLE).
 ///
@@ -62,6 +63,7 @@ class MeshtasticService extends ChangeNotifier {
 
   MeshtasticService() {
     _loadSavedGatewayNodeId();
+    _loadCampoState();
   }
 
   // ---------- Getters públicos ----------
@@ -696,6 +698,19 @@ class MeshtasticService extends ChangeNotifier {
       _parseMailResult(combined, ts);
       return null;
     }
+    // Catálogo y acuses de Campo: son protocolo, no conversación.
+    if (combined.startsWith('AGCAT|')) {
+      _parseAgcat(combined);
+      return null;
+    }
+    if (combined.startsWith('AGPLG|')) {
+      _parseAgplg(combined);
+      return null;
+    }
+    if (combined.startsWith('✓') || combined.startsWith('✗')) {
+      _parseCampoAck(combined, ts);
+      return null;
+    }
     final fi = _famInRe.firstMatch(combined);
     if (fi != null) {
       final id = int.tryParse(fi.group(1)!);
@@ -731,6 +746,116 @@ class MeshtasticService extends ChangeNotifier {
     );
   }
 
+  // ---------- Campo (captura agroindustrial) ----------
+  // El catálogo llega por la mesh y se cachea en el teléfono: la app nunca
+  // necesita internet. Las capturas se encolan y se reintentan, así que estar
+  // fuera del alcance de la malla no pierde ningún dato.
+  static const _campoCatalogKey = 'campo_catalogo';
+  static const _campoQueueKey = 'campo_pendientes';
+
+  CampoCatalogo? _campoCatalogo;
+  Map<String, String> _campoPlagas = {};
+  final List<CampoPendiente> _campoPendientes = [];
+  CampoResultado? _campoResultado;
+
+  CampoCatalogo? get campoCatalogo => _campoCatalogo;
+  int get campoPendientesCount => _campoPendientes.length;
+  CampoResultado? get campoResultado => _campoResultado;
+
+  Future<void> _loadCampoState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final cat = prefs.getString(_campoCatalogKey);
+    if (cat != null) {
+      try {
+        _campoCatalogo =
+            CampoCatalogo.fromJson(jsonDecode(cat) as Map<String, dynamic>);
+        _campoPlagas = Map<String, String>.from(_campoCatalogo!.plagas);
+      } catch (_) {}
+    }
+    final q = prefs.getStringList(_campoQueueKey);
+    if (q != null) {
+      for (final s in q) {
+        try {
+          _campoPendientes
+              .add(CampoPendiente.fromJson(jsonDecode(s) as Map<String, dynamic>));
+        } catch (_) {}
+      }
+    }
+    if (_campoCatalogo != null || _campoPendientes.isNotEmpty) notifyListeners();
+  }
+
+  Future<void> _saveCampoCatalog() async {
+    if (_campoCatalogo == null) return;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_campoCatalogKey, jsonEncode(_campoCatalogo!.toJson()));
+  }
+
+  Future<void> _saveCampoQueue() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setStringList(_campoQueueKey,
+        [for (final p in _campoPendientes) jsonEncode(p.toJson())]);
+  }
+
+  /// Pide al gateway el catálogo de lotes y parcelas de la finca de este nodo.
+  Future<bool> requestCampoCatalog() =>
+      sendChatMessage('@agcat', destinationId: currentGatewayNodeId);
+
+  /// Encola una captura y trata de enviarla en el acto.
+  ///
+  /// `trama` va SIN la marca de hora: se añade al enviar, para que el gateway
+  /// sepa cuándo se capturó de verdad aunque salga horas después.
+  Future<void> capturarCampo(String trama) async {
+    _campoPendientes
+        .add(CampoPendiente(trama: trama, capturada: DateTime.now()));
+    await _saveCampoQueue();
+    notifyListeners();
+    await flushCampoQueue();
+  }
+
+  /// Reintenta la cola. Se detiene al primer fallo y conserva el resto.
+  Future<void> flushCampoQueue() async {
+    if (!isConnected) return;
+    while (_campoPendientes.isNotEmpty) {
+      final p = _campoPendientes.first;
+      final ok = await sendChatMessage(p.tramaConHora,
+          destinationId: currentGatewayNodeId);
+      if (!ok) break;
+      _campoPendientes.removeAt(0);
+      await _saveCampoQueue();
+      notifyListeners();
+    }
+  }
+
+  void _parseAgcat(String s) {
+    final cat = CampoCatalogo.parseAgcat(s, _campoPlagas);
+    if (cat == null) return;
+    _campoCatalogo = cat;
+    _saveCampoCatalog();
+  }
+
+  void _parseAgplg(String s) {
+    _campoPlagas = CampoCatalogo.parseAgplg(s);
+    final c = _campoCatalogo;
+    if (c != null) {
+      // El catálogo pudo llegar antes que las plagas: recomponerlo.
+      _campoCatalogo = CampoCatalogo(
+        fincaCodigo: c.fincaCodigo,
+        fincaNombre: c.fincaNombre,
+        lotes: c.lotes,
+        plagas: _campoPlagas,
+      );
+      _saveCampoCatalog();
+    }
+  }
+
+  void _parseCampoAck(String s, DateTime ts) {
+    _campoResultado = CampoResultado(
+      ok: s.startsWith('✓'),
+      texto: s.substring(1).trim(),
+      cuando: ts,
+    );
+  }
+
   // ---------- No-leídos ----------
   void clearUnreadChat() {
     _unreadChatCount = 0;
@@ -753,9 +878,15 @@ class MeshtasticService extends ChangeNotifier {
 
   // ---------- Utilidades ----------
   void _updateStatus(ConnectionStatus status, String message) {
+    final reconectado =
+        status == ConnectionStatus.connected && _status != status;
     _status = status;
     _statusMessage = message;
     notifyListeners();
+    // Al recuperar la malla, sacar lo que quedó encolado sin cobertura.
+    if (reconectado && _campoPendientes.isNotEmpty) {
+      unawaited(flushCampoQueue());
+    }
   }
 
   @override

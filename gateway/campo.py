@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from claude_mesh import send_text
+from claude_mesh import _chunk_for_mesh, send_text
 
 log = logging.getLogger("campo")
 
@@ -382,6 +382,76 @@ def handle_campo(interface, from_num: int, text: str) -> None:
         log.error("✗ campo handle: %s", e)
         try:
             send_text(interface, from_num, "✗ error interno del gateway")
+        except Exception:
+            pass
+
+
+# ---------- Catálogo por la mesh (para que la app arme sus formularios) ----------
+# La app NUNCA necesita internet: pide el catálogo por LoRa y lo cachea.
+CATALOG_CMDS = ("@agcat", "@lotes")
+
+
+def is_catalog_request(text: str) -> bool:
+    return bool(text) and text.strip().lower() in CATALOG_CMDS
+
+
+def _tok(s: str) -> str:
+    """Quita los separadores del protocolo de un texto libre."""
+    return (s or "").replace("|", " ").replace(":", " ").replace(",", " ").strip()
+
+
+def _send_frag(interface, node_num: int, body: str) -> None:
+    chunks = _chunk_for_mesh(body)
+    total = len(chunks)
+    for i, chunk in enumerate(chunks, 1):
+        send_text(interface, node_num, chunk if total == 1 else f"[{i}/{total}] {chunk}")
+
+
+def send_catalog(interface, node_num: int) -> None:
+    """Responde el catálogo de la finca del operario:
+
+    AGCAT|<finca>|<nombre>|L1:Nombre:CULTIVO:P1,P2,P3|L2:...
+    AGPLG|BRC:Broca|ROY:Roya|...
+    """
+    if not ENABLED:
+        return
+    try:
+        _maybe_refresh()
+        with _catalog_lock:
+            operario = _catalog["operarios"].get(node_num)
+            if not operario:
+                send_text(interface, node_num,
+                          f"✗ nodo {_node_hex(node_num)} sin operario registrado")
+                return
+            finca_cod = operario["finca_codigo"]
+            finca = _catalog["fincas"].get(finca_cod) or {}
+            lotes = sorted(
+                (l for (f, _c), l in _catalog["lotes"].items() if f == finca_cod),
+                key=lambda l: l["codigo"],
+            )
+            parcelas = {}
+            for (lote_id, cod), _p in sorted(_catalog["parcelas"].items(),
+                                             key=lambda kv: kv[0][1]):
+                parcelas.setdefault(lote_id, []).append(cod)
+            plagas = dict(_catalog["plagas"])
+
+        partes = [f"AGCAT|{finca_cod}|{_tok(finca.get('nombre', finca_cod))}"]
+        for l in lotes:
+            ps = ",".join(parcelas.get(l["id"], []))
+            partes.append(f"{l['codigo']}:{_tok(l['nombre'])}:{l.get('cultivo') or ''}:{ps}")
+        _send_frag(interface, node_num, "|".join(partes))
+
+        # Nombres cortos: cada byte cuenta en LoRa.
+        pl = "|".join(f"{c}:{_tok(p['nombre']).split(' del ')[0].split(' de ')[0]}"
+                      for c, p in sorted(plagas.items()))
+        _send_frag(interface, node_num, f"AGPLG|{pl}")
+
+        log.info("🌱 catálogo → %s (%s): %d lotes, %d plagas",
+                 operario["nombre"], _node_hex(node_num), len(lotes), len(plagas))
+    except Exception as e:
+        log.error("✗ campo catálogo: %s", e)
+        try:
+            send_text(interface, node_num, "✗ no pude enviar el catálogo")
         except Exception:
             pass
 
