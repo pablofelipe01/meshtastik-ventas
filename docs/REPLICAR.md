@@ -138,6 +138,7 @@ Archivos del gateway (ninguno cambia por cliente):
 | `bridge.py` | Puente mesh↔Supabase (chat con la familia, sincronía de nodos) |
 | `claude_mesh.py` | `@claude`: consulta a la API de Anthropic |
 | `mailer.py` | Envío de correos por SMTP desde la mesh |
+| `camara_ganado.py` | Cámara de conteo de ganado simulada (`--lora` o `--directo`) |
 
 ### `.env` (aquí sí cambia todo)
 
@@ -399,7 +400,7 @@ Todas estas nos costaron tiempo de verdad. Léelas antes, no después.
 Sé honesto con el cliente sobre esto; ninguno es difícil, pero ninguno está.
 
 - **Cultivos y plagas** todavía se editan por SQL (el resto del catálogo ya no).
-- **Conteo por cámara real**: la arquitectura está lista y el nodo se registra
-  como dispositivo, pero la inferencia no está implementada.
+- **Conteo por cámara real**: hay un simulador (`camara_ganado.py`) que recorre
+  el camino completo; falta la inferencia sobre video de una cámara física.
 - **Histórico más allá de lo que cabe en pantalla**: el panel carga las últimas
   capturas, sin paginación ni exportación.

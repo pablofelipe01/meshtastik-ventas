@@ -15,6 +15,7 @@ import {
   demora,
   esHoy,
   pesos,
+  resesFaltantes,
   valorTexto,
 } from "@/lib/campoTypes";
 
@@ -95,6 +96,19 @@ export default function Campo() {
   const focos = hoy.filter((c) => c.tipo === "PLG").length;
   const ultimoGan = visibles.find((c) => c.tipo === "GAN");
   const ultima = visibles[0];
+  // Aviso vivo: el último conteo de cada lote que dio faltantes.
+  const alertasGanado = (() => {
+    const vistos = new Set<string>();
+    const out: Captura[] = [];
+    for (const c of visibles) {
+      if (c.tipo !== "GAN" || !c.lote_codigo) continue;
+      const k = `${c.finca_codigo}-${c.lote_codigo}`;
+      if (vistos.has(k)) continue; // solo el más reciente por lote
+      vistos.add(k);
+      if (resesFaltantes(c) > 0) out.push(c);
+    }
+    return out;
+  })();
 
   return (
     <main className="mx-auto flex min-h-dvh max-w-2xl flex-col">
@@ -165,6 +179,30 @@ export default function Campo() {
           </p>
         </div>
       </section>
+
+      {/* Ganado faltante: lo primero que debe ver quien manda. */}
+      {alertasGanado.map((c) => (
+        <section key={`al-${c.id}`} className="px-3 pt-3">
+          <div
+            className="flex items-center gap-3 rounded-xl p-3"
+            style={{
+              background: "rgba(222,79,116,0.12)",
+              border: "1px solid rgba(222,79,116,0.5)",
+            }}
+          >
+            <span className="text-2xl">🐄</span>
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-semibold" style={{ color: "#f0a8ba" }}>
+                Faltan {resesFaltantes(c)} reses en {c.lote_codigo}
+              </p>
+              <p className="truncate text-xs text-slate-400">
+                Contadas {c.valor} de {String(c.datos?.hato_esperado ?? "—")} ·{" "}
+                {timeAgo(c.recibido_at)}
+              </p>
+            </div>
+          </div>
+        </section>
+      ))}
 
       <div className="mt-3 h-[34dvh] w-full bg-[#081726]">
         <CampoMap lotes={lotesVis} capturas={visibles} finca={finca} />
@@ -237,6 +275,12 @@ export default function Campo() {
                     <p className="truncate text-xs text-slate-400">
                       {t?.label} · {c.finca_codigo} {c.lote_codigo}
                       {c.parcela_codigo} · {c.operario_nombre ?? "—"}
+                      {resesFaltantes(c) > 0 && (
+                        <span style={{ color: "#de4f74" }}>
+                          {" "}
+                          · faltan {resesFaltantes(c)}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="shrink-0 text-right">

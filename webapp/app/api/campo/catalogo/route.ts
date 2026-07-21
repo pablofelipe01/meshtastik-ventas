@@ -63,6 +63,7 @@ function limpiar(entidad: Entidad, d: Record<string, unknown>): Record<string, u
         nombre: texto(d.nombre),
         cultivo: texto(d.cultivo).toUpperCase() || null,
         hectareas: num(d.hectareas),
+        hato_esperado: num(d.hato_esperado),
         lat: num(d.lat),
         lng: num(d.lng),
       };

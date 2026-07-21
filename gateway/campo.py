@@ -138,7 +138,8 @@ def load_catalog() -> None:
     fincas = _get(f"campo_fincas?select=codigo,nombre,municipio,departamento{dc}")
     operarios = _get("campo_operarios?select=id,node_num,nombre,tipo,finca_codigo,"
                      f"tarifa_kg&activo=eq.true{dc}")
-    lotes = _get(f"campo_lotes?select=id,finca_codigo,codigo,nombre,cultivo,lat,lng{dc}")
+    lotes = _get("campo_lotes?select=id,finca_codigo,codigo,nombre,cultivo,lat,lng,"
+                 f"hato_esperado{dc}")
     parcelas = _get(f"campo_parcelas?select=id,lote_id,codigo,nombre,lat,lng{dc}")
     # Cultivos y plagas son catálogos de códigos compartidos entre clientes.
     cultivos = _get("campo_cultivos?select=codigo,nombre,unidad_cosecha")
@@ -270,6 +271,12 @@ def _parse(text: str, from_num: int) -> dict:
                 conf = _num(resto[1])
                 datos["confianza"] = conf if conf <= 1 else conf / 100.0
                 datos["fuente"] = "camara"
+            # Contra el hato esperado, el conteo deja de ser un número suelto y
+            # responde a la pregunta que importa: ¿están todas?
+            hato = lote.get("hato_esperado")
+            if hato:
+                datos["hato_esperado"] = int(hato)
+                datos["faltan"] = max(0, int(hato) - valor)
     except CampoError:
         raise
     except (ValueError, TypeError):
@@ -379,6 +386,9 @@ def handle_campo(interface, from_num: int, text: str) -> None:
         _enqueue(row)
         ack = f"✓ {row['tipo']} {row['lote_codigo']}{row['parcela_codigo']} " \
               f"{row['valor']:g} {row['unidad']}"
+        faltan = (row.get("datos") or {}).get("faltan")
+        if faltan:
+            ack += f" ⚠ faltan {faltan}"
         send_text(interface, from_num, ack[:190])
         log.info("🌱 captura de %s (%s): %s", row["operario_nombre"],
                  _node_hex(from_num), row["raw"])

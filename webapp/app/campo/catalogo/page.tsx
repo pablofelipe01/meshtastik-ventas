@@ -515,6 +515,20 @@ export default function Catalogo() {
                     ...cultivos.map((c) => ({ valor: c.codigo, texto: `${c.codigo} · ${c.nombre}` })),
                   ]}
                 />
+                {String(ed.datos.cultivo ?? "") === "GAN" && (
+                  <>
+                    <Campo
+                      label="Cabezas esperadas en el potrero"
+                      valor={ed.datos.hato_esperado}
+                      onChange={(v) => set("hato_esperado", v)}
+                      tipo="number"
+                    />
+                    <p className="-mt-2 mb-3 text-[11px] text-slate-500">
+                      Si el conteo de la cámara baja de aquí, el panel avisa que
+                      faltan reses.
+                    </p>
+                  </>
+                )}
                 <p className="mb-1 mt-3 text-xs text-slate-300">
                   Toca el mapa para marcar el lote
                 </p>

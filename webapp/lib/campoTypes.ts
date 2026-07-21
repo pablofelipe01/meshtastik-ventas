@@ -123,3 +123,15 @@ export function valorTexto(c: Captura): string {
   }
   return `${compacto(v)} ${c.unidad ?? ""}`.trim();
 }
+
+/**
+ * Reses que faltan respecto al hato esperado del lote.
+ *
+ * Es lo que convierte un conteo en una respuesta: no «hay 117 cabezas», sino
+ * «faltan 3». Hoy el ganadero se entera de eso días después.
+ */
+export function resesFaltantes(c: Captura): number {
+  if (c.tipo !== "GAN") return 0;
+  const n = Number(c.datos?.faltan ?? 0);
+  return Number.isFinite(n) && n > 0 ? n : 0;
+}

@@ -66,15 +66,54 @@ operario vea confirmado que el dato llegó.
 
 ## Conteo de ganado por cámara
 
-Hoy **simulado**, pero la arquitectura es la real y es la parte más vendedora:
-
-> Una cámara en la manga de aforo hace la inferencia **localmente** y manda por
-> LoRa solo el resultado — *"127 cabezas, confianza 0.94"*, unos 20 bytes.
+> Una cámara en el potrero hace la inferencia **localmente** y manda por LoRa
+> solo el resultado — *"117 cabezas, confianza 0,93"*, unos 20 bytes.
 > **El video nunca viaja; solo el dato.** Por eso funciona donde no hay ni señal
 > ni ancho de banda.
 
 En el catálogo, el nodo `Inv7` (`!4bf18b6e`) está registrado como
 **dispositivo** `CAM-01 Manga de Aforo`, no como persona.
+
+### Lo que convierte un número en una respuesta
+
+`campo_lotes.hato_esperado` dice cuántas cabezas debería haber. El gateway compara
+y guarda `faltan` en los datos de la captura, de modo que el panel no dice
+*"hay 117 cabezas"* sino **"faltan 3 reses en L1"** — y el operario recibe el
+acuse `✓ GAN L1P2 117 cabezas ⚠ faltan 3`.
+
+Ese es el argumento del módulo: robo, extravío o un animal apartado por
+enfermedad. Hoy el ganadero se entera días después.
+
+### La cámara simulada (`gateway/camara_ganado.py`)
+
+Falta el hardware, así que se sustituye **solo la inferencia**; todo lo demás es
+el camino real. Dos modos:
+
+```bash
+# Por RADIO: el nodo de la cámara va enchufado por USB y el paquete viaja de
+# verdad por LoRa hasta el Central.
+python camara_ganado.py --lora --puerto /dev/ttyACM1 --lote L1 --parcela P2
+
+# DIRECTO: sin radio, pero por la misma ruta interna del gateway (validación,
+# cliente, alerta, cola y espejo). Para desarrollar y para demos sin ocupar nodo.
+python camara_ganado.py --directo --lote L1 --parcela P2
+
+# El momento que vende
+python camara_ganado.py --directo --lote L1 --parcela P2 --faltan 3
+
+# Vigilancia continua cada 2 minutos
+python camara_ganado.py --directo --lote L1 --parcela P2 --intervalo 120 --veces 0
+```
+
+La simulación **no cuenta perfecto**, a propósito: la confianza varía y el error
+crece cuando baja, igual que con polvo, sombra o animales cruzándose. En una
+prueba real con confianza 0,89 contó 122 donde había 120, y con 0,99 acertó
+exacto. Un contador que siempre acierta no es creíble — y tampoco enseña que la
+confianza importa.
+
+> En modo `--lora`, el nodo enchufado debe ser el que está registrado como la
+> cámara. Si no, el gateway responde *"sin operario registrado"*: es correcto,
+> porque el nodo es la identidad.
 
 ---
 
