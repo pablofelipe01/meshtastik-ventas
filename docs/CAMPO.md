@@ -84,10 +84,32 @@ acuse `✓ GAN L1P2 117 cabezas ⚠ faltan 3`.
 Ese es el argumento del módulo: robo, extravío o un animal apartado por
 enfermedad. Hoy el ganadero se entera días después.
 
-### La cámara simulada (`gateway/camara_ganado.py`)
+### La cámara simulada — desde la app (lo normal)
 
-Falta el hardware, así que se sustituye **solo la inferencia**; todo lo demás es
-el camino real. Dos modos:
+En la pestaña **Campo**, al elegir *Ganado* aparece **«Simular conteo de
+cámara»**. Pide cuántas reses faltan (0 = hato completo), genera un conteo
+realista y lo manda por la mesh.
+
+**Es la forma correcta de simularla**: el teléfono está conectado a un nodo que
+sí está en el campo, así que el dato **cruza la malla de verdad** hasta el
+Central. Una cámara enchufada al gateway no simularía nada — una cámara de
+potrero está lejos por definición.
+
+La trama lleva una marca final `cam`:
+
+```
+@ag|GAN|L1|P2|117|0.93|cam
+```
+
+El gateway la atribuye a la **cámara de esa finca** (el operario de tipo
+`dispositivo`), aunque la haya emitido el nodo de una persona. En el panel se lee
+*«CAM-01 Manga de Aforo · 117 cabezas · faltan 3»*, que es la historia limpia, y
+en los datos quedan `simulado: true` y el nodo que realmente la envió — para no
+confundirla nunca con la de una cámara real.
+
+### La cámara simulada — desde el gateway (`gateway/camara_ganado.py`)
+
+Para desarrollo, o si algún día dedicas un nodo a hacer de cámara. Dos modos:
 
 ```bash
 # Por RADIO: el nodo de la cámara va enchufado por USB y el paquete viaja de

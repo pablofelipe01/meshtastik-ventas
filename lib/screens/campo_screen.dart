@@ -120,6 +120,91 @@ class _CampoScreenState extends State<CampoScreen> {
     );
   }
 
+  /// Panel de la cámara: elige cuántas reses faltan y manda el conteo.
+  Future<void> _abrirSimuladorCamara() async {
+    final lote = _loteSel;
+    if (lote == null || _parcela == null) return;
+    final hato = lote.hatoEsperado ?? 100;
+    final faltanCtrl = TextEditingController(text: '0');
+
+    final enviar = await showModalBottomSheet<bool>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: 20,
+          right: 20,
+          top: 20,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.videocam),
+                const SizedBox(width: 8),
+                Text('Cámara en ${lote.codigo}',
+                    style: Theme.of(ctx).textTheme.titleMedium),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'La cámara cuenta en el potrero y manda por la mesh solo el '
+              'número, nunca el video. Por eso funciona sin señal.',
+              style: Theme.of(ctx).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 16),
+            Text('Cabezas esperadas: $hato',
+                style: const TextStyle(fontWeight: FontWeight.w600)),
+            const SizedBox(height: 12),
+            TextField(
+              controller: faltanCtrl,
+              keyboardType: TextInputType.number,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(
+                labelText: '¿Cuántas faltan?',
+                helperText: '0 = el hato está completo',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 20),
+            FilledButton.icon(
+              onPressed: () => Navigator.pop(ctx, true),
+              icon: const Icon(Icons.send),
+              label: const Text('Enviar conteo'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(50),
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+
+    if (enviar != true || !mounted) return;
+
+    final faltan = int.tryParse(faltanCtrl.text.trim()) ?? 0;
+    final reales = (hato - faltan).clamp(0, hato);
+    final c = simularConteo(reales);
+    // La marca 'cam' hace que el gateway lo atribuya a la cámara de la finca.
+    final trama = '@ag|GAN|${lote.codigo}|$_parcela|${c.cabezas}|${c.confianza}|cam';
+
+    setState(() => _enviando = true);
+    await _s.capturarCampo(trama);
+    if (!mounted) return;
+    setState(() => _enviando = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Cámara: ${c.cabezas} cabezas '
+            '(confianza ${(c.confianza * 100).round()}%)'),
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final cat = _s.campoCatalogo;
@@ -248,6 +333,31 @@ class _CampoScreenState extends State<CampoScreen> {
                       suffixText: _sufijoValor(),
                     ),
                   ),
+
+                // La cámara del potrero: el dato sale por la mesh desde este
+                // nodo, igual que saldría desde una cámara instalada allá.
+                if (_tipo == CampoTipo.gan) ...[
+                  const SizedBox(height: 16),
+                  OutlinedButton.icon(
+                    onPressed: _loteSel == null || _parcela == null
+                        ? null
+                        : _abrirSimuladorCamara,
+                    icon: const Icon(Icons.videocam_outlined),
+                    label: const Text('Simular conteo de cámara'),
+                    style: OutlinedButton.styleFrom(
+                      minimumSize: const Size.fromHeight(48),
+                    ),
+                  ),
+                  if (_loteSel != null && _loteSel!.hatoEsperado == null)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 6),
+                      child: Text(
+                        'Este lote no tiene cabezas esperadas configuradas; '
+                        'el conteo saldrá sin comparación.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
+                ],
 
                 const SizedBox(height: 24),
                 FilledButton.icon(

@@ -121,6 +121,7 @@ _catalog = {
     "cultivos": {},    # codigo -> dict
     "plagas": {},      # codigo -> dict
     "fincas": {},      # codigo -> dict
+    "camaras": {},     # finca -> operario de tipo dispositivo
     "loaded_at": 0.0,
 }
 _catalog_lock = threading.Lock()
@@ -149,6 +150,9 @@ def load_catalog() -> None:
         _catalog["fincas"] = {f["codigo"]: f for f in fincas}
         _catalog["operarios"] = {o["node_num"]: o for o in operarios
                                  if o.get("node_num") is not None}
+        # La cámara de cada finca, para atribuirle los conteos marcados 'cam'.
+        _catalog["camaras"] = {o["finca_codigo"]: o for o in operarios
+                               if o.get("tipo") == "dispositivo"}
         _catalog["lotes"] = {(l["finca_codigo"], l["codigo"]): l for l in lotes}
         _catalog["parcelas"] = {(p["lote_id"], p["codigo"]): p for p in parcelas}
         _catalog["cultivos"] = {c["codigo"]: c for c in cultivos}
@@ -264,6 +268,13 @@ def _parse(text: str, from_num: int) -> dict:
             valor, unidad = _num(resto[1]), cul["unidad_cosecha"]
 
         else:  # GAN
+            # Marca final 'cam': el conteo se atribuye a la cámara de la finca,
+            # aunque lo haya emitido el nodo de una persona (simulación desde la
+            # app). Queda registrado como simulado para no confundirlo luego con
+            # el de una cámara real.
+            es_camara = bool(resto) and resto[-1].lower() == "cam"
+            if es_camara:
+                resto = resto[:-1]
             if not resto:
                 raise CampoError("falta el número de cabezas")
             valor, unidad = int(_num(resto[0])), "cabezas"
@@ -271,6 +282,14 @@ def _parse(text: str, from_num: int) -> dict:
                 conf = _num(resto[1])
                 datos["confianza"] = conf if conf <= 1 else conf / 100.0
                 datos["fuente"] = "camara"
+            if es_camara:
+                datos["fuente"] = "camara"
+                datos["simulado"] = True
+                datos["nodo_emisor"] = _node_hex(from_num)
+                with _catalog_lock:
+                    cam = _catalog["camaras"].get(finca)
+                if cam:
+                    operario = cam  # el conteo aparece a nombre de la cámara
             # Contra el hato esperado, el conteo deja de ser un número suelto y
             # responde a la pregunta que importa: ¿están todas?
             hato = lote.get("hato_esperado")
@@ -428,8 +447,11 @@ def _send_frag(interface, node_num: int, body: str) -> None:
 def send_catalog(interface, node_num: int) -> None:
     """Responde el catálogo de la finca del operario:
 
-    AGCAT|<finca>|<nombre>|L1:Nombre:CULTIVO:P1,P2,P3|L2:...
+    AGCAT|<finca>|<nombre>|L1:Nombre:CULTIVO:P1,P2,P3[:hato]|L2:...
     AGPLG|BRC:Broca|ROY:Roya|...
+
+    El quinto campo del lote (hato esperado) solo va en los de ganadería: la app
+    lo necesita para el simulador de la cámara.
     """
     if not ENABLED:
         return
@@ -456,7 +478,10 @@ def send_catalog(interface, node_num: int) -> None:
         partes = [f"AGCAT|{finca_cod}|{_tok(finca.get('nombre', finca_cod))}"]
         for l in lotes:
             ps = ",".join(parcelas.get(l["id"], []))
-            partes.append(f"{l['codigo']}:{_tok(l['nombre'])}:{l.get('cultivo') or ''}:{ps}")
+            item = f"{l['codigo']}:{_tok(l['nombre'])}:{l.get('cultivo') or ''}:{ps}"
+            if l.get("hato_esperado"):
+                item += f":{int(l['hato_esperado'])}"
+            partes.append(item)
         _send_frag(interface, node_num, "|".join(partes))
 
         # Nombres cortos: cada byte cuenta en LoRa.

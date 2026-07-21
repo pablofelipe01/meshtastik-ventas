@@ -5,6 +5,8 @@
 /// ninguna señal, que es justo el punto del producto.
 library;
 
+import 'dart:math';
+
 import 'package:flutter/material.dart';
 
 /// Los cinco tipos de captura. El código de 3 letras es lo que viaja por radio.
@@ -34,6 +36,7 @@ class CampoLote {
     required this.nombre,
     required this.cultivo,
     required this.parcelas,
+    this.hatoEsperado,
   });
 
   final String codigo; // L1
@@ -41,7 +44,38 @@ class CampoLote {
   final String cultivo; // CAF (puede venir vacío)
   final List<String> parcelas; // [P1, P2, P3]
 
+  /// Cabezas que debería haber (solo ganadería). Lo usa el simulador de cámara.
+  final int? hatoEsperado;
+
   String get etiqueta => '$codigo · $nombre';
+}
+
+/// Resultado de una pasada de la cámara de conteo.
+class ConteoCamara {
+  const ConteoCamara(this.cabezas, this.confianza);
+
+  final int cabezas;
+  final double confianza;
+}
+
+/// Simula lo que vería una cámara contando el ganado del potrero.
+///
+/// No cuenta perfecto a propósito: la confianza varía y el error crece cuando
+/// baja, igual que con polvo, sombra o animales cruzándose. Un contador que
+/// siempre acierta no es creíble, y esconde que la confianza importa.
+ConteoCamara simularConteo(int cabezasReales, {double luz = 0.93}) {
+  final r = Random();
+  // Box-Muller para una variación con forma de campana, no plana.
+  final u1 = 1 - r.nextDouble();
+  final u2 = r.nextDouble();
+  final gauss = luz + 0.04 * sqrt(-2 * log(u1)) * cos(2 * pi * u2);
+  final confianza = gauss.clamp(0.72, 0.995);
+  final margen = ((1 - confianza) * cabezasReales * 0.35).round();
+  final desvio = margen == 0 ? 0 : r.nextInt(margen * 2 + 1) - margen;
+  return ConteoCamara(
+    max(0, cabezasReales + desvio),
+    double.parse(confianza.toStringAsFixed(2)),
+  );
 }
 
 /// Catálogo de la finca del operario, tal como lo envió el gateway.
@@ -60,7 +94,7 @@ class CampoCatalogo {
 
   bool get vacio => lotes.isEmpty;
 
-  /// "AGCAT|ESP|La Esperanza|L1:El Alto:CAF:P1,P2,P3|..."
+  /// "AGCAT|ESP|La Esperanza|L1:El Alto:CAF:P1,P2,P3[:hato]|..."
   static CampoCatalogo? parseAgcat(String s, Map<String, String> plagas) {
     final parts = s.split('|');
     if (parts.length < 3 || parts[0] != 'AGCAT') return null;
@@ -77,6 +111,9 @@ class CampoCatalogo {
             .map((p) => p.trim())
             .where((p) => p.isNotEmpty)
             .toList(),
+        // Quinto campo opcional: solo lo traen los lotes de ganadería.
+        hatoEsperado:
+            campos.length > 4 ? int.tryParse(campos[4].trim()) : null,
       ));
     }
     return CampoCatalogo(
@@ -112,6 +149,7 @@ class CampoCatalogo {
               'nombre': l.nombre,
               'cultivo': l.cultivo,
               'parcelas': l.parcelas,
+              'hato': l.hatoEsperado,
             }
         ],
       };
@@ -127,6 +165,7 @@ class CampoCatalogo {
               nombre: l['nombre'] as String? ?? '',
               cultivo: l['cultivo'] as String? ?? '',
               parcelas: List<String>.from(l['parcelas'] as List? ?? []),
+              hatoEsperado: (l['hato'] as num?)?.toInt(),
             )
         ],
       );
