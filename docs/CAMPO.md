@@ -1,8 +1,8 @@
 # Módulo Campo — captura agroindustrial sobre la mesh
 
-> **Estado:** Fases 1–4 completas y probadas de punta a punta (catálogo, esquema,
-> gateway, espejo Airtable, app Flutter y panel en vivo). Falta la fase 5
-> (guion de demo).
+> **Estado:** completo y probado por radio real de punta a punta.
+> Documento técnico. Para **demostrarlo** ante un cliente ver [`DEMO.md`](DEMO.md);
+> para **montar una unidad nueva** ver [`REPLICAR.md`](REPLICAR.md).
 
 ## El problema que resuelve
 
@@ -256,12 +256,23 @@ validar** — ver la nota en `webapp/lib/campoTypes.ts`.
 
 ---
 
-## Pendiente
+## Probado por radio real
 
-| Fase | Qué falta |
-|---|---|
-| 5 | Guion de demo de ventas. |
+El 2026-07-21, con la unidad armada:
 
-Y una prueba que sigue pendiente: **todo se ha verificado por simulación**
-(stdin en el gateway), no con radios reales, porque la unidad está desarmada.
-La lógica está probada; falta confirmar el transporte LoRa con los equipos.
+```
+15:48:42  [DM] !a8656e83 → !40883c41 : @ag|FRJ|L3|P3|790|t1784666920
+15:48:42  captura de Luz Marina Ospina
+15:48:45  → Supabase  → Airtable
+```
+
+**5 segundos** desde que el operario pulsa "Registrar" en un teléfono sin señal
+celular hasta que el dato está en la base y en Airtable. Esa cifra ya no es una
+promesa: es una medición, y el panel de análisis la calcula sola.
+
+## Lo que falta
+
+- Aislamiento entre clientes en una sola base (ver [`REPLICAR.md`](REPLICAR.md)).
+- Catálogo y alta de operarios desde la webapp: hoy se siembran con SQL.
+- La inferencia real de la cámara de conteo de ganado (la arquitectura está
+  lista; el nodo ya se registra como dispositivo).

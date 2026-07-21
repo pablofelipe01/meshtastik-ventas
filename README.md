@@ -17,7 +17,21 @@ cada quien ve solo lo suyo). Los mensajes viajan por internet al gateway y por l
 mesh al nodo, y viceversa — con **cola local** en el gateway para no perder
 mensajes si el internet se cae.
 
-📄 **Próximos pasos:** [`docs/PROXIMOS_PASOS.md`](docs/PROXIMOS_PASOS.md).
+Y un **módulo de captura agroindustrial** (Campo): el operario registra datos en
+campo sin ninguna señal —conteo de frutos, peso para el jornal, plagas, censo,
+conteo de ganado por cámara— y llegan a la nube **en segundos** en vez de en días.
+Incluye panel en vivo con mapa y un simulador de escenarios para vender.
+
+📄 **Documentación**
+
+| Documento | Para qué |
+|---|---|
+| [`docs/CAMPO.md`](docs/CAMPO.md) | El módulo agro: protocolo, esquema, gateway, app y panel |
+| [`docs/DEMO.md`](docs/DEMO.md) | **Guion de demostración** ante un cliente, con plan B |
+| [`docs/REPLICAR.md`](docs/REPLICAR.md) | **Montar una unidad nueva** a la medida de un cliente |
+| [`docs/APP.md`](docs/APP.md) | La app Flutter en detalle |
+| [`gateway/README.md`](gateway/README.md) | El gateway en detalle |
+| [`docs/PROXIMOS_PASOS.md`](docs/PROXIMOS_PASOS.md) | Próximos pasos |
 
 ## Componentes
 
