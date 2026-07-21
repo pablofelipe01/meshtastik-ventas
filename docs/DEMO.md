@@ -22,8 +22,10 @@ Haz esto **completo**, en orden. Cada casilla existe porque algo falló alguna v
 ### Gateway
 - [ ] Enciende la Pi y espera 2 minutos
 - [ ] `ssh pfac@pi4-meshportatil-show 'systemctl is-active mesh-portatil-gateway'` → `active`
-- [ ] **Internet en la Pi** — es el fallo más probable fuera de casa:
-      `ssh pfac@pi4-meshportatil-show 'getent hosts api.anthropic.com'`
+- [ ] **Internet en la Pi** — el fallo más probable fuera de casa. La unidad
+      lleva pantalla y teclado: al llegar al sitio, únete a la red de allá
+      (queda guardada para la próxima) y comprueba:
+      `getent hosts api.anthropic.com` → debe devolver una IP.
       Si no resuelve, mira "DNS" en las averías de abajo.
 - [ ] El Central enumera: `ls /dev/ttyACM0` (si no, revisa el cable — ver averías)
 - [ ] Sin errores: `sudo journalctl -u mesh-portatil-gateway --since '5 min ago' | grep ERROR`

@@ -150,9 +150,10 @@ Debe aparecer:
 
 ### Red — no lo dejes para el final
 
-- Configura **el hotspot del cliente o el tuyo** como red conocida, con
-  `autoconnect` y prioridad baja (respaldo). El hotspot debe ir en **2,4 GHz**:
-  la Pi no ve 6 GHz.
+- La unidad lleva **pantalla y teclado**, así que la red se puede unir en el
+  sitio (y NetworkManager la guarda para la próxima). Aun así, deja preguardada
+  una red de respaldo con `autoconnect` y prioridad baja. Si es un hotspot
+  celular, en **2,4 GHz**: la Pi no ve 6 GHz.
 - Si usas Tailscale, **comprueba el DNS después de instalarlo**
   (ver [trampas](#trampas-conocidas)).
 - Apagado sin contraseña por SSH: un archivo en `/etc/sudoers.d/` con NOPASSWD
@@ -332,7 +333,7 @@ Todas estas nos costaron tiempo de verdad. Léelas antes, no después.
 | **Falta Realtime** | Todo funciona pero el panel no se actualiza solo | `alter publication supabase_realtime add table campo_capturas;` |
 | **Escuchar `*` en Realtime** | La página se recarga en bucle | Suscríbete solo a `INSERT`: el espejo de Airtable hace `PATCH` a cada fila |
 | **Nodo sin operario** | *"sin operario registrado"* | Registra el nodo en `campo_operarios`, o usa otro nodo |
-| **Sin hotspot configurado** | Todo bien en la oficina, nada en campo | Configura la red móvil **antes** de salir, en 2,4 GHz |
+| **Gateway sin internet en el sitio** | Todo bien en la oficina, el panel no se actualiza en campo | La unidad lleva pantalla y teclado: conéctate a la red del sitio allí mismo (queda guardada). Si usas hotspot celular, ponlo en **2,4 GHz** — la Pi no ve 6 GHz. Comprueba con `getent hosts api.anthropic.com` |
 | **Colores de gráficos a ojo** | Un daltónico no distingue dos series | Revalida la paleta con el verificador; ver la nota en `webapp/lib/campoTypes.ts` |
 | **Datos de demo mezclados** | La próxima demo enseña cifras falsas | Bórralos al terminar desde `/campo/analisis` |
 
