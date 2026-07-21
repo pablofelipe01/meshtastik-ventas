@@ -81,6 +81,37 @@ body {
   color: var(--teal);
 }
 
+/* Control deslizante del simulador */
+.deslizador {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  outline: none;
+}
+.deslizador::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--lime);
+  border: 2px solid #0b1f33;
+  cursor: pointer;
+}
+.deslizador::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--lime);
+  border: 2px solid #0b1f33;
+  cursor: pointer;
+}
+.deslizador:focus-visible {
+  box-shadow: 0 0 0 3px rgba(147, 208, 44, 0.35);
+}
+
 /* Captura recién llegada por la mesh: destello breve en el feed en vivo. */
 @keyframes flash-nuevo {
   0% {

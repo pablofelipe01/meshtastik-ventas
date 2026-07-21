@@ -112,6 +112,12 @@ export default function Campo() {
             En vivo desde la mesh
           </p>
         </div>
+        <Link
+          href="/campo/analisis"
+          className="btn-ghost rounded-lg px-3 py-1.5 text-xs"
+        >
+          Análisis
+        </Link>
       </header>
 
       {/* Filtro: una sola fila, encima de los datos. */}
