@@ -26,6 +26,7 @@ Incluye panel en vivo con mapa y un simulador de escenarios para vender.
 
 | Documento | Para qué |
 |---|---|
+| [`docs/PRODUCTO.md`](docs/PRODUCTO.md) | **Qué es y por qué funciona** — la historia completa, para material de venta |
 | [`docs/CAMPO.md`](docs/CAMPO.md) | El módulo agro: protocolo, esquema, gateway, app y panel |
 | [`docs/DEMO.md`](docs/DEMO.md) | **Guion de demostración** ante un cliente, con plan B |
 | [`docs/REPLICAR.md`](docs/REPLICAR.md) | **Montar una unidad nueva** a la medida de un cliente |
