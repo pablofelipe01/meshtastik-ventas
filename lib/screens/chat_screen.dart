@@ -122,9 +122,19 @@ class _ChatScreenState extends State<ChatScreen> {
         children: [
           const Icon(Icons.campaign, size: 18),
           const SizedBox(width: 8),
-          const Expanded(
-            child: Text('Canal 0: Primary', overflow: TextOverflow.ellipsis),
+          Expanded(
+            // El nombre sale de la configuración del radio, no escrito a mano:
+            // así el canal privado del cliente aparece por su nombre.
+            child: Text(
+              'Canal 0: ${_service.channelName(0)}',
+              overflow: TextOverflow.ellipsis,
+            ),
           ),
+          if (_service.channelIsPrivate(0))
+            const Padding(
+              padding: EdgeInsets.only(left: 4),
+              child: Icon(Icons.lock, size: 14, color: Colors.green),
+            ),
           if (_service.hasUnreadOnChannel(0)) _unreadDot(),
         ],
       ),
@@ -137,15 +147,24 @@ class _ChatScreenState extends State<ChatScreen> {
         value: destination,
         child: Row(
           children: [
-            const Icon(Icons.person, size: 18),
+            // Verde = el radio lo ha oído hace poco. Gris = está en el catálogo
+            // pero lleva rato mudo (típicamente, batería agotada).
+            Icon(
+              Icons.person,
+              size: 18,
+              color: node.isOnline ? Colors.green : Colors.grey,
+            ),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
-                node.displayName,
+                node.isOnline
+                    ? node.displayName
+                    : '${node.displayName} · ${_hace(node.lastSeen)}',
                 overflow: TextOverflow.ellipsis,
-                style: hasUnread
-                    ? const TextStyle(fontWeight: FontWeight.bold)
-                    : null,
+                style: TextStyle(
+                  fontWeight: hasUnread ? FontWeight.bold : null,
+                  color: node.isOnline ? null : Colors.grey,
+                ),
               ),
             ),
             if (hasUnread) _unreadDot(),
@@ -173,6 +192,19 @@ class _ChatScreenState extends State<ChatScreen> {
       ));
     }
     return items;
+  }
+
+
+  /// "hace 5 min", "hace 3 h", "hace 2 d" — para saber si un nodo sigue vivo.
+  String _hace(DateTime? cuando) {
+    if (cuando == null) return 'sin señal';
+    final s = DateTime.now().difference(cuando).inSeconds;
+    if (s < 60) return 'hace un momento';
+    final m = s ~/ 60;
+    if (m < 60) return 'hace $m min';
+    final h = m ~/ 60;
+    if (h < 24) return 'hace $h h';
+    return 'hace ${h ~/ 24} d';
   }
 
   Widget _unreadDot() => Container(

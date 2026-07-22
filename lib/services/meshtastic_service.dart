@@ -33,6 +33,7 @@ class MeshtasticService extends ChangeNotifier {
   String _statusMessage = 'Desconectado';
   StreamSubscription? _connectionSubscription;
   StreamSubscription? _packetSubscription;
+  StreamSubscription? _nodeSubscription;
   String? _connectedDeviceName;
   String? _connectedDeviceMac;
 
@@ -163,6 +164,12 @@ class MeshtasticService extends ChangeNotifier {
   void _wireStreams() {
     _connectionSubscription?.cancel();
     _packetSubscription?.cancel();
+    _nodeSubscription?.cancel();
+    // El radio va descubriendo la malla y lo cuenta por aquí.
+    _nodeSubscription = _client!.nodeStream.listen((n) {
+      _updateKnownNode(n.num);
+      notifyListeners();
+    });
     _connectionSubscription = _client!.connectionStream.listen((status) {
       switch (status.state) {
         case MeshtasticConnectionState.connected:
@@ -170,6 +177,7 @@ class MeshtasticService extends ChangeNotifier {
           _autoReconnectEnabled = true;
           _isReconnecting = false;
           _startKeepalive();
+          _cargarNodosDelRadio();
           break;
         case MeshtasticConnectionState.connecting:
         case MeshtasticConnectionState.configuring:
@@ -365,7 +373,7 @@ class MeshtasticService extends ChangeNotifier {
       final isDM = toNodeId != _broadcastNum && toNodeId != 0;
 
       // Actualiza el catálogo de nodos con cualquier tráfico.
-      _updateKnownNode(fromNodeId);
+      _updateKnownNode(fromNodeId, vistoAhora: true);
 
       if (packet.isRouting) {
         _handleRoutingPacket(packet);
@@ -432,17 +440,58 @@ class MeshtasticService extends ChangeNotifier {
   }
 
   // ---------- Nodos ----------
-  void _updateKnownNode(int nodeId) {
+  void _updateKnownNode(int nodeId, {bool vistoAhora = false}) {
     final info = _client?.nodes[nodeId];
     final name = _getNodeName(nodeId);
     _knownNodes[nodeId] = MeshNode(
       nodeId: nodeId,
       nodeName: name,
-      isOnline: true,
-      lastSeen: DateTime.now(),
+      // Si acaba de mandar algo, está vivo seguro; si viene del catálogo del
+      // radio, respeta lo que este sabe en vez de darlo por conectado.
+      isOnline: vistoAhora || (info?.isOnline ?? false),
+      lastSeen: vistoAhora ? DateTime.now() : (info?.lastHeard ?? DateTime.now()),
       batteryLevel: info?.batteryLevel,
       voltage: info?.voltage,
     );
+  }
+
+  // ---------- Canales ----------
+  /// Nombre real del canal según la configuración del radio (p. ej. "Inverse").
+  ///
+  /// La app mostraba "Primary" escrito a mano, así que el canal privado del
+  /// cliente nunca aparecía por su nombre aunque los mensajes sí viajaran por él.
+  String channelName(int index) {
+    for (final c in _client?.config?.channels ?? const []) {
+      if (c.index == index) {
+        final n = c.settings.name.trim();
+        if (n.isNotEmpty) return n;
+      }
+    }
+    return index == 0 ? 'Primary' : 'Canal $index';
+  }
+
+  /// ¿El canal va cifrado con clave propia? (la del canal público ocupa 1 byte)
+  bool channelIsPrivate(int index) {
+    for (final c in _client?.config?.channels ?? const []) {
+      if (c.index == index) return c.settings.psk.length > 1;
+    }
+    return false;
+  }
+
+  /// Vuelca a la app la base de nodos que ya tiene el radio.
+  ///
+  /// Antes la lista solo se llenaba con los nodos que transmitían **mientras la
+  /// app estaba conectada**, así que aparecían unos u otros según quién hubiera
+  /// hablado. El radio conoce la malla entera; basta con preguntarle.
+  void _cargarNodosDelRadio() {
+    final nodos = _client?.nodes;
+    if (nodos == null || nodos.isEmpty) return;
+    final mine = myNodeNum;
+    for (final num in nodos.keys) {
+      if (num == mine) continue;
+      _updateKnownNode(num);
+    }
+    notifyListeners();
   }
 
   String _getNodeName(int nodeId) {
@@ -894,6 +943,7 @@ class MeshtasticService extends ChangeNotifier {
     _stopKeepalive();
     _connectionSubscription?.cancel();
     _packetSubscription?.cancel();
+    _nodeSubscription?.cancel();
     _messageController.close();
     _client?.disconnect();
     super.dispose();
