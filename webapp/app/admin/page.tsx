@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import AppParaCliente from "@/components/AppParaCliente";
 import Link from "next/link";
 import { supabase } from "@/lib/supabase";
 import { useAuth } from "@/lib/auth";
@@ -181,6 +182,10 @@ export default function AdminPage() {
         </Link>
         <h1 className="flex-1 text-base font-semibold">Administración</h1>
       </header>
+
+      <div className="px-4 pt-4">
+        <AppParaCliente />
+      </div>
 
       <section className="p-4">
         <h2 className="mb-2 flex flex-wrap items-center gap-2 text-sm font-semibold text-slate-400">
